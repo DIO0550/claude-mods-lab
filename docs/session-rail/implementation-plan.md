@@ -1,0 +1,161 @@
+# Claude Code CLI セッションサイドバー 実装計画
+
+- 対象リポジトリは [DIO0550/claude-mods-lab](https://github.com/DIO0550/claude-mods-lab)
+- 2026年11月27日時点の `main` は [初期コミット `490ea78`](https://github.com/DIO0550/claude-mods-lab/commit/490ea78d3c73b9a5589948756f30188eb4fdf8a6)。`.gitignore`、`LICENSE`、`README.md` のみ
+- 見た目と操作の基準は [画面デザイン](design.html)
+- 仮の Mod 名は `session-rail`。起動コマンドは `/rail`
+
+## 1. 作るもの
+
+Claude Code CLI で会話を続けながら、**今のセッションの環境・コンテキスト・変更**を確認できる Mod を自作する。Claude Desktop の右側を UI の参考にし、CLI のペインを使う。左側の案は、進行中のサブエージェントと現在の作業ツリーを見渡すための探索エリアとする。
+
+| 範囲 | 完成形 |
+| --- | --- |
+| 初版 | `/rail` で開閉。ワイド表示では右側、狭い表示では入力欄上に要約。環境、コンテキスト、ローカル差分、PR と CI の状態を表示 |
+| 初版の詳細 | コンテキストを展開して色別の内訳を表示。PR 全体と未コミット差分を別に扱い、「変更」から詳細に進める |
+| 次の版 | 同じ Mod ペインに「概要」「サブエージェント」「ファイル」を追加。初版の概要は維持 |
+| 将来の構想 | 左に探索、中央に会話、右に概要を常駐。現行の公開 Mods API に左ペインを指定する方法がないため、必要になった時点で tmux などの外側 UI を別の検証にする |
+
+Desktop 本体の変更、別セッションへの切り替え、埋め込みブラウザ、埋め込みターミナル、自前エディタは今回の範囲外。ファイルの初版は閲覧のみとする。
+
+## 2. 最初に実機で確かめる
+
+この段階の試作は `plugins/session-rail/` に置く。固定データの描画と開閉は `tests/session-rail.test.ts` で確認できる。以下は Claude Code 実機での確認手順。
+
+型定義やモックだけでは、ペインの位置、フォーカス、組み込みコマンドの起動までは確定できない。まず、実データなしの最小 Mod をローカルで読み込む。
+
+```bash
+claude --version
+claude plugin validate ./plugins/session-rail
+claude --plugin-dir ./plugins/session-rail
+```
+
+1. `session.start` で `/rail` を登録する。`$.ui.open` と対象 ID の `ui.render` だけで、環境・コンテキスト・変更の固定見出しを出す。
+2. fullscreen の広い端末、狭い端末、classic 表示で `e.props.placement` と `bodyColumns` を確認する。Mod 側で列数を決め打ちして配置しない。
+3. 再実行やユーザーの閉じる操作で状態が残らないこと、Tab と Enter で操作できて入力欄へ戻れることを確認する。作業中に開く動作は、コマンド登録の `immediate` も含めて試す。
+4. 同じ実機で `$.session.usage({ breakdown: "summary" })` の利用可否、`$.command.run` からの `/diff` 起動を個別に確認する。使えない場合の代替は第4節のとおり。
+
+検証時の Claude Code バージョンと端末条件を README に記録し、動作確認できた版を初版の基準にする。HTML の動作は CLI での実機検証に含めない。
+
+## 3. 設計とリポジトリ構成
+
+**起動と描画、データの取得、表示用データの組み立てを分ける。** `ui.render` は現在のスナップショットを描くだけにして、Git や `gh` を毎回起動しない。レイアウトを入れ替えても同じデータを使えるようにする。
+
+```mermaid
+flowchart TD
+    Session["Claude Code セッション"] --> Context["環境とコンテキスト"]
+    Tree["作業中の worktree"] --> Git["ローカルの変更"]
+    Branch["現在ブランチの GitHub PR"] --> PR["PR と CI"]
+    Context --> Snapshot["表示スナップショット"]
+    Git --> Snapshot
+    PR --> Snapshot
+    Snapshot --> Render["幅に合わせたペイン描画"]
+```
+
+```mermaid
+stateDiagram-v2
+    state "閉じている" as Closed
+    state "配置待ち" as Opening
+    state "右に表示" as Dock
+    state "入力欄上に表示" as Inline
+    [*] --> Closed
+    Closed --> Opening : 開く
+    Opening --> Dock : dock
+    Opening --> Inline : inline
+    Opening --> Closed : 中断か配置不可
+    Dock --> Inline : 表示条件が変わる
+    Inline --> Dock : 表示条件が変わる
+    Dock --> Closed : 閉じる
+    Inline --> Closed : 閉じる
+```
+
+コンテキストの展開やタブの選択は、ペインの開閉とは別の表示状態。環境、コンテキスト、ローカル差分、PR は個別に準備中・取得済み・対象なし・取得不可を持つ。一つの取得に失敗しても、他のセクションは表示する。
+
+| 置き場所の案 | 役割 |
+| --- | --- |
+| `plugins/session-rail/.claude-plugin/plugin.json` | Mod の名前と説明 |
+| `plugins/session-rail/hooks/hooks.json` | hooks module の入口を指定 |
+| `plugins/session-rail/hooks/register.ts` | コマンド登録、開閉、更新イベントの接続 |
+| `plugins/session-rail/src/rail.ts` | スナップショットと表示状態。Git や UI API に直接依存しないデータ整形 |
+| `plugins/session-rail/src/sources/` | セッション・Git・GitHub の読み取りを必要に応じて分割 |
+| `plugins/session-rail/src/ui/` | ペイン要素、コンパクト表示、コンテキストの内訳 |
+| `plugins/session-rail/tests/` | 変換ロジックと Mod のイベント／描画テスト |
+| `docs/session-rail/` | リポジトリに計画やモックを置く場合の候補 |
+
+空のフォルダや大きな土台は先に作らない。最小検証ではマニフェスト・フック登録・描画だけ置き、項目を追加するときに分割する。ローカルの検証は公式の `--plugin-dir` を使う。
+
+## 4. データと操作の契約
+
+### 環境と差分
+
+| 表示 | 取得・判断 |
+| --- | --- |
+| 環境 | `$.session.cwd()` とその場所の Git 情報から、リポジトリ名、ブランチ、実際の worktree を出す。同じリポジトリでもメインの作業ツリーに置き換えない |
+| ローカル変更 | 現在の worktree の Git を読む。行数は `HEAD` との差分の追加・削除を表示し、未追跡ファイルは件数を分ける。バイナリなど行数が出ない場合は集計不能な行数を推測しない |
+| PR | `gh pr view --json number,title,url,additions,deletions,statusCheckRollup,state` を現在ブランチで実行。対応する PR を確認できた場合だけカードを出す。PR なしは、未認証や通信失敗による取得不可と区別 |
+| CI | 実行中・成功・失敗・チェックなしを区別。未知の応答を成功にしない |
+
+ローカル差分と PR 差分は別の数字。たとえば未コミットが `+18 −4`、PR が `+301 −0` なら、ローカルでコミットした時点で未コミットだけが変わる。PR の数字は GitHub 側を再取得して更新する。
+
+### コンテキスト
+
+- 折りたたんだ状態では `$.session.usage()` の合計を表示する。初回応答前や計測値がない場合は「未計測」。`0%` とは区別する。
+- 展開時は `$.session.usage({ breakdown: "summary" })` のローカル推計を使う案。展開中の合計、割合、色バーは、同じ内訳の `totalTokens` と `rawMaxTokens` を基準にそろえる。モックの 100 万トークンは固定値にしない。
+- メッセージ、MCP ツール、メモリファイル、システムツールなど、取得できた項目だけを表示する。`used`、`buffer`、`free` を色分けし、`deferred` は別枠で使用量に足さない。MCP ツール・メモリファイル・カスタムエージェントの明細は、データがあるときだけ展開可能にする。
+- 対応しないバージョンや取得失敗では、合計はそのまま表示して `/context` に案内する。精密なトークン計数の自動実行は初版に含めない。
+
+### ビュー
+
+| メニュー | 動作 |
+| --- | --- |
+| 変更 | ローカル側は `/diff` を開く。直接呼べないときはコマンドを案内。PR カードのリンクは GitHub の PR ページ |
+| ブラウザ | PR や指定 URL を外部で開く。プレビューの埋め込みはしない |
+| ファイル | 次の版のファイルタブへ。フォルダを開く操作で直下だけ読み、選んだファイルは閲覧用に表示 |
+| ターミナル | 後続で tmux の別ペイン。利用できる環境でのみ有効化 |
+| サイドチャット | 後続で `/btw` への導線。未送信の入力を上書きしない |
+| バックグラウンドタスク | 後続で現セッションの `/tasks` への導線。サブエージェントタブとは分ける |
+
+メニューの並びは画面案に合わせる。初版では操作できる項目と後続予定の項目を見分けられるようにし、Desktop のキー割り当てを流用しない。
+
+### 更新のタイミング
+
+- 開いた直後に環境・コンテキスト・ローカル変更を出し、PR は後から差し込む。開いている間はターン終了や明示的な更新で状態を読み直す。毎回 PR まで取得する必要はない。
+- セッション ID、worktree、ブランチの組が更新途中で変わったら、前の結果を描画に使わない。再開したセッションや移動した worktree へ、前の PR を持ち越さない。
+- 閉じたら自動更新を止める。Git や GitHub が使えない場所でも `/rail` 自体は開ける。
+
+## 5. 実装順と完了条件
+
+小さく分ける場合は、下表の工程を Issue と PR の単位にする。ここでは Issue 作成やコード変更は行わない。
+
+| 順番 | 実装 | この段階で確かめること |
+| --- | --- | --- |
+| 01 | Mod の雛形と `/rail` | 固定データで右に表示。狭い端末で入力欄上に出る。開閉・フォーカスが崩れない |
+| 02 | 環境・コンテキスト合計・ローカル変更 | worktree ごとに正しく変わる。未計測・リポジトリ外・変更なしを区別 |
+| 03 | 折りたたみのコンテキスト内訳 | 色バーと表が同じ分母。遅延項目と圧縮バッファを使用分に混ぜない |
+| 04 | PR カードと変更のビュー | PR とローカルの差分を別表示。CI 状態と取得不可を区別し、差分へ進める。ここで初版 |
+| 05 | サブエージェントタブ | `$.agent.list()` で今のセッションの名前・タスク・実行状態を表示。行の展開だけでは入力先を変えない |
+| 06 | ファイルタブ | 今の worktree のフォルダを開き、読み取りプレビューまで。Git の変更印は取得できるときに表示 |
+
+05 で会話切り替えを足す場合は「会話を開く」と「本編に戻る」を明示する。`$.ui.view` で端末の表示を切り替えると次の入力先も変わるため、単なる選択や詳細の折りたたみでは呼ばない。右側の「カスタムエージェント」は定義が占めるトークン、探索側は動いているサブエージェントの状態とする。
+
+06 のあと、右のタブ切り替えだけで足りるかを使って確認する。左右に常駐させる価値がある場合だけ、外側の左 UI と、現在セッションの状態を共有する方法を別計画で決める。
+
+## 6. 検証
+
+| 検証 | 主なケース |
+| --- | --- |
+| 表示用の変換テスト | コンテキスト未計測、内訳の分母と色分け、遅延項目の除外、ローカルと PR の独立、CI 無し・実行中・失敗 |
+| Mod のテスト | `claude plugin validate` と、対応版の `claude plugin test`。イベントの登録、対象ペインだけの描画、開閉後の更新、取得失敗時の部分表示 |
+| 作業ツリーの検証 | 別 worktree、Git 管理外、変更なし、未追跡ファイル、PR なし、認証なし、ブランチ変更後に遅い PR 応答が戻る場合 |
+| 実機 | macOS の通常ターミナルと tmux を最初の確認先とする。広い fullscreen、狭い幅、classic、フォーカス復帰、動作中の開閉を確認。使う devcontainer でも追試 |
+
+手始めは 01 だけ。固定データで「開く → 見る → 閉じて入力に戻る」が通れば、Git や PR を触らずに配置の見込みを判断できる。
+
+## 参照
+
+- [Claude Code 公式の Mod 作成ガイド](https://code.claude.com/docs/en/plugins/mods/create)
+- [Mod の描画とペインの公式ガイド](https://code.claude.com/docs/en/plugins/mods/interface)
+- [公開 Mods API](https://code.claude.com/docs/en/plugins/mods/reference)
+- [Anthropic の公開型定義](https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts)
+- [Mod テストの公式ガイド](https://code.claude.com/docs/en/plugins/mods/test)
+- [GitHub CLI の PR メタデータ](https://cli.github.com/manual/gh_pr_view)

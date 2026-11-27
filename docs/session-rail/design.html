@@ -1,0 +1,1198 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Claude Mods｜右サイドバーの UI 計画</title>
+  <style>
+    :root {
+      --paper: #f5f3ee;
+      --white: #fffefb;
+      --ink: #20241f;
+      --muted: #575d56;
+      --line: #dcded5;
+      --moss: #24554b;
+      --moss-wash: #e3eee8;
+      --mono: "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono CJK JP", monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans CJK JP", sans-serif;
+      --terminal: #1b201e;
+      --terminal-rail: #222925;
+      --terminal-line: #39453e;
+      --terminal-ink: #ecf1eb;
+      --terminal-muted: #aebcb3;
+      --terminal-link: #c7e9d2;
+      --green: #a6e4b5;
+      --red: #ffb8af;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-padding-top: 1.1rem; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 15px/1.75 var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--moss); text-underline-offset: .22em; }
+    a:hover { text-decoration-thickness: 2px; }
+    code, kbd { font-family: var(--mono); }
+    code { overflow-wrap: anywhere; }
+    :focus-visible { outline: 2px solid #087b65; outline-offset: 4px; }
+    h1, h2, h3, p { margin: 0; }
+    .wrap { width: min(1120px, calc(100% - 56px)); margin-inline: auto; }
+    .top {
+      border-bottom: 1px solid var(--line);
+      background: var(--white);
+    }
+    .top .wrap {
+      min-height: 63px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand { display: flex; align-items: center; gap: .64rem; font-weight: 800; }
+    .brandmark {
+      display: grid;
+      width: 27px;
+      height: 27px;
+      place-items: center;
+      border-radius: 7px;
+      color: var(--white);
+      background: var(--moss);
+    }
+    .icon { width: 16px; height: 16px; flex: 0 0 auto; vertical-align: -.18em; }
+    .brandmark .icon { width: 17px; height: 17px; }
+    .top nav { display: flex; gap: clamp(.75rem, 2vw, 1.55rem); }
+    .top nav a { font-size: 13px; font-weight: 650; color: var(--muted); text-decoration: none; }
+    .top nav a:hover { color: var(--moss); text-decoration: underline; }
+    .hero { padding-block: clamp(35px, 5vw, 63px) 30px; }
+    .eyebrow, .section-id {
+      font: 700 11px/1.45 var(--mono);
+      letter-spacing: .14em;
+      color: var(--moss);
+    }
+    .hero h1 {
+      margin-block: 9px 12px;
+      font-size: clamp(30px, 4.8vw, 57px);
+      letter-spacing: -.045em;
+      line-height: 1.2;
+    }
+    .hero p { max-width: 65ch; color: var(--muted); }
+    .intro-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: var(--moss-wash);
+      color: var(--moss);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    a.tag { text-decoration: none; }
+    a.tag:hover { text-decoration: underline; }
+    .demo { border: 0; padding: 0; margin: 0; min-width: 0; }
+    .demo > legend { padding: 0; font-size: 17px; font-weight: 800; }
+    .sr, .scene-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .demo-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-block: 10px 12px;
+    }
+    .scene-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      border: 1px solid var(--line);
+      padding: 4px;
+      border-radius: 10px;
+      background: var(--white);
+    }
+    .scene-picker label {
+      padding: 5px 13px;
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .scene-picker label:hover { background: var(--paper); }
+    #scene-pr:checked ~ .demo-bar label[for=scene-pr],
+    #scene-local:checked ~ .demo-bar label[for=scene-local],
+    #scene-inline:checked ~ .demo-bar label[for=scene-inline] {
+      background: var(--moss);
+      color: white;
+    }
+    #scene-pr:focus-visible ~ .demo-bar label[for=scene-pr],
+    #scene-local:focus-visible ~ .demo-bar label[for=scene-local],
+    #scene-inline:focus-visible ~ .demo-bar label[for=scene-inline] {
+      outline: 2px solid #087b65;
+      outline-offset: 3px;
+    }
+    .demo-note { color: var(--muted); font-size: 12px; }
+    .preview {
+      padding: clamp(8px, 2vw, 22px);
+      border: 1px solid #d4d9d0;
+      border-radius: 16px;
+      background: #e8ebe5;
+      background-image: radial-gradient(#cdd6cc 0.7px, transparent 0.7px);
+      background-size: 13px 13px;
+    }
+    .terminal {
+      margin-inline: auto;
+      border: 1px solid #424d45;
+      border-radius: 13px;
+      background: var(--terminal);
+      color: var(--terminal-ink);
+      box-shadow: 0 13px 30px rgba(22, 35, 28, .18);
+      font: 13px/1.65 var(--mono);
+    }
+    .terminal :focus-visible { outline-color: #d7f3cc; }
+    .terminal a { color: var(--terminal-link); }
+    .terminal-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 45px;
+      border-bottom: 1px solid var(--terminal-line);
+      border-radius: 12px 12px 0 0;
+      padding-inline: 16px;
+      background: #252c28;
+    }
+    .terminal-title {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+      font-weight: 750;
+    }
+    .terminal-title .icon { color: #b8ccc0; }
+    .terminal-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .terminal-mode { color: #c3d0c6; font-size: 10px; letter-spacing: .08em; white-space: nowrap; }
+    .terminal-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(315px, 34%);
+      grid-template-rows: 1fr auto;
+      grid-template-areas: "chat rail" "composer rail";
+      min-height: 408px;
+    }
+    .chat {
+      grid-area: chat;
+      min-width: 0;
+      padding: clamp(17px, 3vw, 33px) clamp(12px, 3vw, 34px);
+    }
+    .shell { color: var(--terminal-muted); margin-bottom: 14px; }
+    .turn {
+      margin-bottom: 18px;
+      display: flex;
+      gap: 9px;
+      align-items: baseline;
+    }
+    .turn-marker { color: #b0dac3; font-weight: 800; }
+    .reply .turn-marker { color: #f4b389; }
+    .tool-result {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-left: 18px;
+      border: 1px solid var(--terminal-line);
+      border-radius: 6px;
+      padding: 4px 9px;
+      color: var(--terminal-muted);
+      font-size: 12px;
+    }
+    .tool-result b { color: var(--green); }
+    .composer {
+      grid-area: composer;
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+      padding: 0 clamp(12px, 3vw, 34px) 19px;
+      color: var(--terminal-muted);
+    }
+    .input-demo {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid #556459;
+      border-radius: 7px;
+      padding: 7px 12px;
+      background: #1e2621;
+    }
+    .input-demo b { color: #cbe3cd; }
+    .composer-note { font-size: 10px; }
+    .composer-note kbd { color: var(--terminal-ink); }
+    .rail {
+      grid-area: rail;
+      min-width: 0;
+      border-left: 1px solid var(--terminal-line);
+      border-radius: 0 0 12px 0;
+      background: var(--terminal-rail);
+      font-family: var(--sans);
+    }
+    .rail-top {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 49px;
+      padding: 7px 14px;
+      border-bottom: 1px solid var(--terminal-line);
+    }
+    .rail-title { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 800; }
+    .rail-title .icon { color: #bdd5c3; }
+    details > summary { list-style: none; cursor: pointer; }
+    details > summary::-webkit-details-marker { display: none; }
+    .launcher { flex: 0 0 auto; }
+    .launcher summary {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border: 1px solid #526357;
+      border-radius: 6px;
+      color: #e0eae2;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .launcher[open] summary, .launcher summary:hover { background: #35473b; }
+    .launcher[open] .chevron { transform: rotate(180deg); }
+    .chevron { display: inline-block; color: inherit; font-size: 11px; }
+    .views {
+      position: absolute;
+      z-index: 2;
+      top: calc(100% - 2px);
+      right: 10px;
+      width: min(275px, calc(100% - 20px));
+      background: #303b33;
+      border: 1px solid #5b6e60;
+      box-shadow: 0 8px 25px #121713a8;
+      border-radius: 9px;
+      overflow: hidden;
+    }
+    .views .view-heading {
+      font-size: 10px;
+      font-weight: 700;
+      color: #c0cec3;
+      margin: 8px 11px 4px;
+    }
+    .views ul { list-style: none; margin: 0; padding: 2px 4px 5px; }
+    .views a {
+      display: grid;
+      grid-template-columns: 16px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 7px;
+      border-radius: 4px;
+      color: var(--terminal-ink);
+      font-size: 12px;
+      text-decoration: none;
+    }
+    .views a:hover { background: #415347; color: white; }
+    .views a:focus-visible { outline-offset: -2px; }
+    .views .side-key { color: #cad6cb; font: 10px var(--mono); }
+    .rail-content { display: grid; }
+    .rail-block { padding: 12px 14px; min-width: 0; }
+    .rail-block + .rail-block { border-top: 1px solid var(--terminal-line); }
+    .rail-block h3 {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 6px;
+      color: #cfdbd1;
+      font-size: 11px;
+      font-weight: 780;
+      letter-spacing: .06em;
+    }
+    .rail-block h3 .icon { width: 13px; height: 13px; color: #a8c7b1; }
+    .env-line { display: flex; gap: 7px; align-items: center; min-width: 0; }
+    .env-line + .env-line { margin-top: 4px; }
+    .env-line .icon { color: #9eb5a5; width: 14px; height: 14px; }
+    .env-line span, .env-line code { min-width: 0; }
+    .env-line code {
+      color: var(--terminal-muted);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .env-line strong { font-size: 13px; }
+    .env-type {
+      margin-left: auto;
+      color: #cfdfd2;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: #35453a;
+      font: 10px var(--mono);
+    }
+    .context-row { display: flex; justify-content: space-between; align-items: baseline; gap: 5px; }
+    .context-row b { color: #d9f0da; font: 700 17px var(--mono); }
+    .context-row span { color: var(--terminal-muted); font: 11px var(--mono); }
+    .context-bar {
+      display: block;
+      width: 100%;
+      height: 7px;
+      appearance: none;
+      border: 0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 7px;
+      background: #3b4b40;
+    }
+    .context-bar::-webkit-meter-bar { background: #3b4b40; border: 0; }
+    .context-bar::-webkit-meter-optimum-value { background: #a8d6b3; }
+    .context-bar::-moz-meter-bar { background: #a8d6b3; }
+    .no-context { color: var(--terminal-muted); font-size: 12px; }
+    .ctx {
+      --ctx-msg: #74b4ff;
+      --ctx-mcp: #f2a075;
+      --ctx-mem: #53d4b9;
+      --ctx-system: #f9c65e;
+      --ctx-other: #a8b9ad;
+      --ctx-buffer: #899c90;
+      --ctx-free: #45544a;
+      --ctx-deferred: #77857b;
+    }
+    .ctx-toggle > summary { border-radius: 4px; }
+    .ctx-toggle > summary:hover .ctx-title { color: var(--terminal-ink); }
+    .ctx-title {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 6px;
+      color: #cfdbd1;
+      font-size: 11px;
+      font-weight: 780;
+      letter-spacing: .06em;
+    }
+    .ctx-title .icon { color: #a8c7b1; width: 13px; height: 13px; }
+    .ctx-title .chevron { margin-left: 1px; }
+    .ctx-open-hint { margin-left: auto; color: var(--terminal-muted); font-weight: 500; }
+    .ctx-when-open { display: none; }
+    .ctx-toggle[open] .ctx-title .chevron { transform: rotate(180deg); }
+    .ctx-toggle[open] .ctx-when-closed { display: none; }
+    .ctx-toggle[open] .ctx-when-open { display: inline; }
+    .context-row .usage-label { display: flex; gap: 4px; align-items: baseline; }
+    .context-row .usage-label span { font: 10px var(--sans); }
+    .ctx-bar {
+      display: flex;
+      height: 6px;
+      overflow: hidden;
+      margin-top: 6px;
+      border-radius: 8px;
+      background: var(--ctx-free);
+    }
+    .ctx-bar > span { flex: 0 0 var(--slice); background: var(--bucket-color); }
+    .ctx-msg { --bucket-color: var(--ctx-msg); }
+    .ctx-mcp { --bucket-color: var(--ctx-mcp); }
+    .ctx-mem { --bucket-color: var(--ctx-mem); }
+    .ctx-system { --bucket-color: var(--ctx-system); }
+    .ctx-other { --bucket-color: var(--ctx-other); }
+    .ctx-buffer { --bucket-color: var(--ctx-buffer); }
+    .ctx-free { --bucket-color: var(--ctx-free); }
+    .ctx-deferred { --bucket-color: var(--ctx-deferred); }
+    .ctx-breakdown { margin-top: 9px; }
+    .ctx-caption {
+      margin-bottom: 4px;
+      color: var(--terminal-muted);
+      font-size: 10px;
+    }
+    .ctx-list { margin: 0; }
+    .ctx-list > div {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(43px, auto) minmax(35px, auto);
+      gap: 5px;
+      align-items: baseline;
+      padding-block: 2px;
+      font-size: 11px;
+    }
+    .ctx-list dt { display: flex; align-items: baseline; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+    .ctx-list dt::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      background: var(--bucket-color);
+      flex: 0 0 auto;
+    }
+    .ctx-list dd {
+      margin: 0;
+      color: #c3d0c6;
+      font: 10px var(--mono);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .ctx-separate { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--terminal-line); }
+    .ctx-group { margin-top: 2px; color: var(--terminal-muted); font-size: 11px; }
+    .ctx-group > summary {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 2px;
+      border-radius: 4px;
+    }
+    .ctx-group > summary:hover { background: #36463b; color: var(--terminal-ink); }
+    .ctx-group[open] > summary .tree-twist { transform: rotate(90deg); }
+    .ctx-item-count { margin-left: auto; font: 10px var(--mono); }
+    .ctx-item-example { margin: 2px 0 5px 14px; font-size: 10px; overflow-wrap: anywhere; }
+    .ctx-estimate-note { color: var(--terminal-muted); font-size: 10px; margin-top: 5px; }
+    .pr-box {
+      border: 1px solid #415749;
+      background: #28362d;
+      border-radius: 7px;
+    }
+    .pr-box > summary { padding: 7px 9px; }
+    .pr-box:hover, .pr-box[open] { background: #2f4035; }
+    .pr-heading, .pr-stat, .local-stat {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+    .pr-heading .icon { color: var(--green); width: 13px; height: 13px; }
+    .pr-name { font-weight: 750; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+    .pr-heading .chevron { margin-left: auto; }
+    .pr-box[open] .chevron,
+    .local-box[open] .chevron { transform: rotate(180deg); }
+    .pr-stat { margin-top: 5px; color: var(--terminal-muted); }
+    .diff-stats { font: 700 11px var(--mono); white-space: nowrap; }
+    .plus { color: var(--green); }
+    .minus { color: var(--red); }
+    .ci { margin-left: auto; color: var(--green); font: 700 10px var(--sans); white-space: nowrap; }
+    .pr-id { font: 11px var(--mono); }
+    .expanded {
+      padding: 7px 9px;
+      font-size: 11px;
+      border-top: 1px solid #415749;
+      color: #d4e4d7;
+    }
+    .expanded a { display: inline-block; margin-top: 2px; font-weight: 700; }
+    .local-box { margin-top: 6px; }
+    .local-box summary { color: var(--terminal-muted); padding: 3px 2px; font-size: 11px; }
+    .local-box summary:hover { color: var(--terminal-ink); }
+    .local-stat .diff-stats { margin-left: auto; }
+    .diff-files {
+      display: grid;
+      gap: 4px;
+      list-style: none;
+      margin: 3px 0 0;
+      padding: 7px 2px 0;
+      border-top: 1px solid var(--terminal-line);
+      color: var(--terminal-muted);
+      font-size: 11px;
+    }
+    .diff-files li { display: flex; gap: 5px; justify-content: space-between; }
+    .diff-files code { min-width: 0; }
+    .aside-status { color: #c9d5cc; font-weight: 650; font-size: 11px; }
+    .rail-compact {
+      margin: 0;
+      padding: 5px 12px 7px;
+      font-size: 11px;
+    }
+    .rail-compact > div {
+      display: grid;
+      grid-template-columns: 84px minmax(0, 1fr);
+      gap: 8px;
+      padding-block: 4px;
+    }
+    .rail-compact > div + div { border-top: 1px solid var(--terminal-line); }
+    .rail-compact dt { color: #cfdbd1; font-weight: 750; }
+    .rail-compact dd {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 1px 9px;
+      margin: 0;
+      min-width: 0;
+    }
+    .rail-compact dd code { color: var(--terminal-muted); }
+    .local-only, .inline-only { display: none; }
+    #scene-local:checked ~ .preview .pr-only { display: none; }
+    #scene-local:checked ~ .preview .local-only { display: block; }
+    #scene-inline:checked ~ .preview .wide-only { display: none; }
+    #scene-inline:checked ~ .preview .inline-only { display: inline; }
+    #scene-inline:checked ~ .preview .terminal { max-width: 650px; }
+    #scene-inline:checked ~ .preview .terminal-body {
+      min-height: 0;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto auto;
+      grid-template-areas: "chat" "rail" "composer";
+    }
+    #scene-inline:checked ~ .preview .rail {
+      border: 1px solid var(--terminal-line);
+      border-radius: 7px;
+      margin: 0 12px 12px;
+    }
+    #scene-inline:checked ~ .preview .chat { padding: 15px; }
+    #scene-inline:checked ~ .preview .shell { margin-bottom: 8px; }
+    #scene-inline:checked ~ .preview .turn { margin-bottom: 9px; }
+    #scene-inline:checked ~ .preview .composer { padding-inline: 12px; }
+    #scene-inline:checked ~ .preview .rail-top { min-height: 37px; padding-block: 3px; }
+    #scene-inline:checked ~ .preview .rail-content { display: none; }
+    #scene-inline:checked ~ .preview .rail-compact { display: block; }
+    .below-preview {
+      margin-top: 11px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .below-preview kbd { color: var(--ink); }
+    .explorer-demo { margin-bottom: 13px; }
+    #ex-split:checked ~ .demo-bar label[for=ex-split],
+    #ex-tabs:checked ~ .demo-bar label[for=ex-tabs] {
+      background: var(--moss);
+      color: white;
+    }
+    #ex-split:focus-visible ~ .demo-bar label[for=ex-split],
+    #ex-tabs:focus-visible ~ .demo-bar label[for=ex-tabs] {
+      outline: 2px solid #087b65;
+      outline-offset: 3px;
+    }
+    .ex-layout {
+      display: grid;
+      grid-template-columns: minmax(176px, 24%) minmax(0, 1fr) minmax(214px, 27%);
+      grid-template-rows: 1fr auto;
+      grid-template-areas: "explore chat status" "explore composer status";
+      min-height: 327px;
+    }
+    .ex-layout .chat { padding: clamp(12px, 2vw, 23px); }
+    .ex-layout .composer { padding-inline: clamp(12px, 2vw, 23px); }
+    .ex-side, .ex-right { min-width: 0; background: var(--terminal-rail); font-family: var(--sans); }
+    .ex-side { grid-area: explore; border-right: 1px solid var(--terminal-line); border-radius: 0 0 0 12px; }
+    .ex-right { grid-area: status; border-left: 1px solid var(--terminal-line); border-radius: 0 0 12px 0; }
+    .ex-heading {
+      min-height: 44px;
+      margin: 0;
+      border-bottom: 1px solid var(--terminal-line);
+      padding: 9px 11px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+    }
+    .ex-heading .icon, .ex-block h4 .icon { color: #b2ccbb; }
+    .ex-block { padding: 9px 11px; min-width: 0; }
+    .ex-block + .ex-block { border-top: 1px solid var(--terminal-line); }
+    .ex-block h4 {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin: 0 0 4px;
+      color: #cfdbd1;
+      font-size: 11px;
+      font-weight: 780;
+    }
+    .ex-block h4 .icon { width: 13px; height: 13px; }
+    .ex-count { margin-left: auto; color: var(--terminal-muted); font: 10px var(--mono); }
+    .agent-list, .file-list, .file-list ul { list-style: none; margin: 0; padding: 0; }
+    .agent-list summary, .file-list summary {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 5px;
+      padding: 3px 4px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .agent-list summary:hover, .file-list summary:hover { background: #344039; }
+    .agent-list summary:focus-visible, .file-list summary:focus-visible { outline-offset: -1px; }
+    .agent-list details[open] > summary, .file-list .file-peek[open] > summary { background: #314137; }
+    .agent-marker { width: 1em; flex: 0 0 auto; }
+    .agent-active { color: var(--green); }
+    .agent-waiting { color: #f3d49a; }
+    .agent-done { color: #b3c6bb; }
+    .agent-badge { margin-left: auto; white-space: nowrap; font-size: 10px; }
+    .agent-peek, .file-description {
+      margin: 2px 4px 4px 17px;
+      color: var(--terminal-muted);
+      font-size: 10px;
+      overflow-wrap: anywhere;
+    }
+    .file-list { font-family: var(--mono); }
+    .file-list ul { margin: 0 0 0 8px; padding-left: 7px; border-left: 1px solid #455549; }
+    .file-list summary { gap: 6px; }
+    .file-list .icon { width: 12px; height: 12px; color: #bdd6c3; }
+    .tree-twist { color: var(--terminal-muted); }
+    .file-list .directory[open] > summary .tree-twist { transform: rotate(90deg); }
+    .file-list .file-state { margin-left: auto; color: #f3d49a; font-size: 10px; }
+    .file-list .file-peek summary code { overflow-wrap: anywhere; }
+    .ex-status { font-size: 11px; }
+    .ex-status .env-line strong { font-size: 12px; overflow-wrap: anywhere; }
+    .ex-status .context-row b { font-size: 15px; }
+    .ex-change-counts { display: grid; gap: 3px; }
+    .ex-change-counts div { display: flex; gap: 6px; justify-content: space-between; align-items: baseline; flex-wrap: wrap; }
+    .ex-view-input, .ex-tabs-bar, .tabs-only, .ex-summary { display: none; }
+    #ex-tabs:checked ~ .demo-bar .split-only,
+    #ex-tabs:checked ~ .preview .split-only,
+    #ex-tabs:checked ~ .preview .ex-right { display: none; }
+    #ex-tabs:checked ~ .demo-bar .tabs-only,
+    #ex-tabs:checked ~ .preview .tabs-only { display: inline; }
+    #ex-tabs:checked ~ .ex-view-input { display: block; }
+    #ex-tabs:checked ~ .preview .ex-layout {
+      grid-template-columns: minmax(0, 1fr) minmax(253px, 34%);
+      grid-template-areas: "chat explore" "composer explore";
+    }
+    #ex-tabs:checked ~ .preview .ex-side {
+      border: 0;
+      border-left: 1px solid var(--terminal-line);
+      border-radius: 0 0 12px 0;
+    }
+    #ex-tabs:checked ~ .preview .ex-tabs-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      padding: 5px 7px;
+      border-bottom: 1px solid var(--terminal-line);
+    }
+    .ex-tabs-bar label {
+      cursor: pointer;
+      padding: 3px 7px;
+      font-size: 11px;
+      border-radius: 4px;
+      color: var(--terminal-muted);
+    }
+    .ex-tabs-bar label:hover { background: #35473b; }
+    #ex-tab-overview:checked ~ .preview .ex-tabs-bar label[for=ex-tab-overview],
+    #ex-tab-agents:checked ~ .preview .ex-tabs-bar label[for=ex-tab-agents],
+    #ex-tab-files:checked ~ .preview .ex-tabs-bar label[for=ex-tab-files] {
+      color: var(--terminal-ink);
+      background: #405644;
+      font-weight: 750;
+    }
+    #ex-tab-overview:focus-visible ~ .preview .ex-tabs-bar label[for=ex-tab-overview],
+    #ex-tab-agents:focus-visible ~ .preview .ex-tabs-bar label[for=ex-tab-agents],
+    #ex-tab-files:focus-visible ~ .preview .ex-tabs-bar label[for=ex-tab-files] {
+      outline: 2px solid #d7f3cc;
+      outline-offset: 2px;
+    }
+    #ex-tabs:checked ~ .preview .ex-agents, #ex-tabs:checked ~ .preview .ex-files { display: none; }
+    #ex-tabs:checked ~ #ex-tab-overview:checked ~ .preview .ex-summary,
+    #ex-tabs:checked ~ #ex-tab-agents:checked ~ .preview .ex-agents,
+    #ex-tabs:checked ~ #ex-tab-files:checked ~ .preview .ex-files { display: block; border-top: 0; }
+    .explorer-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+    .section { padding-top: 49px; }
+    .section h2 { margin: 3px 0 9px; font-size: clamp(23px, 3vw, 34px); line-height: 1.35; letter-spacing: -.025em; }
+    .section-copy { color: var(--muted); max-width: 75ch; margin-bottom: 13px; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+    .card {
+      min-width: 0;
+      padding: 16px 17px 18px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--white);
+    }
+    .card h3 {
+      margin-bottom: 7px;
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      font-size: 16px;
+    }
+    .card h3 .icon { color: var(--moss); }
+    .card p { color: var(--muted); font-size: 13px; }
+    .card code, .rule code, .plan-table code, .stage code, .checklist code {
+      padding-inline: .22em;
+      border-radius: 3px;
+      background: #eeefe8;
+      color: #244239;
+      font-size: .93em;
+    }
+    .rule {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: start;
+      gap: 11px;
+      padding: 12px 15px;
+      margin-top: 10px;
+      background: var(--moss-wash);
+      border-radius: 8px;
+      color: #274a40;
+      font-size: 13px;
+    }
+    .rule .icon { margin-top: 4px; }
+    .plan-table {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-spacing: 0;
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--white);
+      font-size: 13px;
+    }
+    .plan-table th, .plan-table td { text-align: left; vertical-align: top; padding: 10px 13px; }
+    .plan-table thead th { color: var(--muted); background: #edeee8; font-size: 12px; }
+    .plan-table tbody th { color: var(--ink); width: 23%; }
+    .plan-table tbody tr + tr > * { border-top: 1px solid #e7e9e2; }
+    .plan-table :target > * { background: #eaf3eb; }
+    .row-title { display: flex; align-items: baseline; gap: 6px; }
+    .row-title .icon { color: var(--moss); align-self: center; }
+    .secondary { color: var(--muted); font-size: 12px; }
+    .iteration {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 0;
+      list-style: none;
+      margin: 0;
+    }
+    .stage {
+      padding: 14px 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--white);
+      min-width: 0;
+    }
+    .stage .step { display: block; color: var(--moss); font: 750 12px var(--mono); margin-bottom: 6px; }
+    .stage h3 { font-size: 15px; margin-bottom: 5px; line-height: 1.4; }
+    .stage p { color: var(--muted); font-size: 12px; }
+    .checks {
+      margin-top: 11px;
+      padding: 11px 14px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--white);
+      font-size: 13px;
+    }
+    .checks > summary { font-weight: 800; }
+    .checks > summary span { color: var(--moss); margin-right: 4px; }
+    .checks[open] > summary span { transform: rotate(90deg); display: inline-block; }
+    .checklist { margin: 7px 0 0; padding-left: 20px; color: var(--muted); }
+    .checklist li + li { margin-top: 3px; }
+    footer {
+      margin-top: 36px;
+      padding-block: 17px 26px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    footer .links { display: flex; flex-wrap: wrap; gap: 4px 15px; margin-top: 5px; }
+    @media (max-width: 850px) {
+      .iteration { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 710px) {
+      .wrap { width: calc(100% - 32px); }
+      .terminal-body {
+        min-height: 0;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto auto;
+        grid-template-areas: "chat" "rail" "composer";
+      }
+      .preview .rail {
+        margin: 0 12px 12px;
+        border: 1px solid var(--terminal-line);
+        border-radius: 7px;
+      }
+      .cards { grid-template-columns: 1fr; gap: 7px; }
+      .explorer-options { grid-template-columns: 1fr; gap: 7px; }
+      .ex-layout, #ex-tabs:checked ~ .preview .ex-layout {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto;
+        grid-template-areas: "chat" "explore" "status" "composer";
+        min-height: 0;
+      }
+      .ex-side, .ex-right, #ex-tabs:checked ~ .preview .ex-side {
+        margin: 0 12px 10px;
+        border: 1px solid var(--terminal-line);
+        border-radius: 7px;
+      }
+      .section { padding-top: 35px; }
+      .composer { padding-inline: 12px; }
+    }
+    @media (max-width: 400px) {
+      .wrap { width: calc(100% - 24px); }
+      .top nav { gap: 8px; }
+      .top nav a { font-size: 11px; }
+      .brand { gap: 5px; font-size: 13px; }
+      .top nav a:first-child { display: none; }
+      .scene-picker label { padding-inline: 8px; }
+      .plan-table th, .plan-table td { padding: 7px; }
+      .row-title .icon { display: none; }
+      .terminal-top { padding-inline: 9px; }
+    }
+    @media print {
+      body { background: white; }
+      .top nav, .demo-bar { display: none; }
+      .wrap { width: 100%; }
+      .preview, .terminal, .card, .stage { break-inside: avoid; }
+      .preview, .terminal { print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <symbol id="i-rail" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M14 5v14M17 9h1M17 12h1"/></g></symbol>
+      <symbol id="i-branch" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 7v10m12-9a7 7 0 0 1-7 7H6"/></g></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+      <symbol id="i-meter" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 17a8 8 0 1 1 16 0M12 17l4-5M7 13l1 1M12 9v2M17 13l1-1"/></g></symbol>
+      <symbol id="i-diff" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 9h6m-3-3v6m-3 5h6"/></g></symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 6 6-6 6m9 0h7"/></g></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="3.8" ry="8.5"/><path d="M4 12h16"/></g></symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 7.5H9L5 21l1-4A7.2 7.2 0 0 1 4 11a8 8 0 0 1 16 0Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-task" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7-7-7 7-7zm6 0 7 7-7 7"/></g></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></g></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zm8 0v5h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="top">
+    <div class="wrap">
+      <div class="brand"><span class="brandmark"><svg class="icon" aria-hidden="true"><use href="#i-rail"/></svg></span> Claude Mods Lab</div>
+      <nav aria-label="ページ内ナビゲーション">
+        <a href="#preview">プレビュー</a>
+        <a href="#explorer">左側の案</a>
+        <a href="#views">操作</a>
+        <a href="#plan">実装順</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero" aria-labelledby="title">
+      <p class="eyebrow">UI PLAN / CLAUDE CODE CLI</p>
+      <h1 id="title">セッションの右サイドバー</h1>
+        <p>会話は開いたまま。ブランチ、コンテキストの使用量と内訳、PR と手元の変更を右側で確認する。Claude Desktop のセッション詳細を、CLI の作業に合わせて作る計画。</p>
+      <div class="intro-tags">
+        <span class="tag"><code>/rail</code> で開く</span>
+        <span class="tag">いまのセッションだけ</span>
+        <span class="tag">公式 Mods API</span>
+        <a class="tag" href="#explorer">左の探索パネル案 ↓</a>
+      </div>
+    </section>
+
+    <section id="preview" aria-label="プレビュー">
+      <fieldset class="demo">
+        <legend>画面プレビュー</legend>
+        <input class="scene-input" type="radio" name="scene" id="scene-pr" checked>
+        <input class="scene-input" type="radio" name="scene" id="scene-local">
+        <input class="scene-input" type="radio" name="scene" id="scene-inline">
+        <div class="demo-bar">
+          <div class="scene-picker">
+            <label for="scene-pr">PR あり</label>
+            <label for="scene-local">PR なし・未コミット</label>
+            <label for="scene-inline">狭い端末</label>
+          </div>
+          <span class="demo-note">設計モック ／ 値はサンプル</span>
+        </div>
+        <div class="preview">
+          <div class="terminal">
+            <div class="terminal-top">
+              <div class="terminal-title"><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><span>Claude Code · design-composer</span></div>
+              <span class="terminal-mode"><span class="wide-only">FULLSCREEN</span><span class="inline-only">INLINE</span></span>
+            </div>
+            <div class="terminal-body">
+              <div class="chat" aria-label="会話のサンプル">
+                <div class="shell">$ claude</div>
+                <div class="turn"><span class="turn-marker" aria-hidden="true">›</span><span>変更したところを確認して</span></div>
+                <div class="turn reply"><span class="turn-marker" aria-hidden="true">✦</span><span>キーボード操作を整理しました。手元にある変更は3ファイルです。</span></div>
+                <div class="tool-result wide-only"><b aria-hidden="true">✓</b> git status を確認</div>
+              </div>
+
+              <aside class="rail" aria-labelledby="rail-title">
+                <div class="rail-top">
+                  <h3 class="rail-title" id="rail-title"><svg class="icon" aria-hidden="true"><use href="#i-rail"/></svg>セッション</h3>
+                  <details class="launcher" id="launcher">
+                    <summary>ビュー<span class="chevron" aria-hidden="true">▾</span></summary>
+                    <div class="views">
+                      <p class="view-heading">開くビューを選択</p>
+                      <ul>
+                        <li><a href="#view-changes"><svg class="icon" aria-hidden="true"><use href="#i-diff"/></svg><span>変更</span><span class="side-key">/diff</span></a></li>
+                        <li><a href="#view-browser"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span>ブラウザ</span><span class="side-key">外部</span></a></li>
+                        <li><a href="#view-files"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><span>ファイル</span><span class="side-key">閲覧</span></a></li>
+                        <li><a href="#view-terminal"><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><span>ターミナル</span><span class="side-key">tmux</span></a></li>
+                        <li><a href="#view-chat"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg><span>サイドチャット</span><span class="side-key">/btw</span></a></li>
+                        <li><a href="#view-tasks"><svg class="icon" aria-hidden="true"><use href="#i-task"/></svg><span>バックグラウンドタスク</span><span class="side-key">/tasks</span></a></li>
+                      </ul>
+                    </div>
+                  </details>
+                </div>
+                <div class="rail-content">
+                  <section class="rail-block">
+                    <h3><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>環境</h3>
+                    <div class="env-line"><strong>DIO0550/design-composer</strong><span class="env-type">LOCAL</span></div>
+                    <div class="env-line"><svg class="icon" aria-hidden="true"><use href="#i-branch"/></svg><code title="feature/keyboard-navigation">feature/keyboard-navigation</code></div>
+                    <div class="env-line wide-only"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><code title="~/work/design-composer">~/work/design-composer</code></div>
+                  </section>
+                  <section class="rail-block ctx" aria-label="コンテキスト">
+                    <details class="ctx-toggle pr-only" id="context-details">
+                      <summary>
+                        <span class="ctx-title"><svg class="icon" aria-hidden="true"><use href="#i-meter"/></svg>コンテキスト<span class="chevron" aria-hidden="true">▾</span><span class="ctx-open-hint ctx-when-closed">内訳を表示</span><span class="ctx-open-hint ctx-when-open">内訳を閉じる</span></span>
+                        <span class="context-row"><span class="usage-label"><b>28%</b><span>使用</span></span><span>28.1万 / 100万</span></span>
+                        <span class="ctx-bar" role="img" aria-label="使用28.1%、自動圧縮用バッファ3.3%、空き容量68.6%">
+                          <span class="ctx-msg" style="--slice:17.9%"></span><span class="ctx-mcp" style="--slice:3.6%"></span><span class="ctx-mem" style="--slice:2.5%"></span><span class="ctx-system" style="--slice:2.3%"></span><span class="ctx-other" style="--slice:1.8041%"></span><span class="ctx-buffer" style="--slice:3.3%"></span>
+                        </span>
+                      </summary>
+                      <div class="ctx-breakdown">
+                        <p class="ctx-caption">項目ごとの目安（トークン）</p>
+                        <dl class="ctx-list" aria-label="使用中">
+                          <div class="ctx-msg" data-tokens="179000"><dt>メッセージ</dt><dd>17.9万</dd><dd>17.9%</dd></div>
+                          <div class="ctx-mcp" data-tokens="36000"><dt>MCP ツール</dt><dd>3.6万</dd><dd>3.6%</dd></div>
+                          <div class="ctx-mem" data-tokens="25000"><dt>メモリファイル</dt><dd>2.5万</dd><dd>2.5%</dd></div>
+                          <div class="ctx-system" data-tokens="23000"><dt>システムツール</dt><dd>2.3万</dd><dd>2.3%</dd></div>
+                          <div class="ctx-other" data-tokens="8415"><dt>Skills</dt><dd>8,415</dd><dd>0.8%</dd></div>
+                          <div class="ctx-other" data-tokens="5887"><dt>システムプロンプト</dt><dd>5,887</dd><dd>0.6%</dd></div>
+                          <div class="ctx-other" data-tokens="2418"><dt>カスタムエージェント</dt><dd>2,418</dd><dd>0.2%</dd></div>
+                          <div class="ctx-other" data-tokens="1321"><dt>MCP サーバーの指示</dt><dd>1,321</dd><dd>0.1%</dd></div>
+                        </dl>
+                        <dl class="ctx-list ctx-separate" aria-label="予約と空き容量">
+                          <div class="ctx-buffer" data-tokens="33000"><dt>自動圧縮用バッファ</dt><dd>3.3万</dd><dd>3.3%</dd></div>
+                          <div class="ctx-free" data-tokens="685959"><dt>空き容量</dt><dd>68.6万</dd><dd>68.6%</dd></div>
+                        </dl>
+                        <dl class="ctx-list ctx-separate" aria-label="遅延読み込み。使用量に含めない">
+                          <div class="ctx-deferred"><dt>システムツール（遅延）</dt><dd>2.5万</dd><dd>—</dd></div>
+                          <div class="ctx-deferred"><dt>MCP ツール（遅延）</dt><dd>2万</dd><dd>—</dd></div>
+                        </dl>
+                        <div class="ctx-separate">
+                          <details class="ctx-group"><summary><span class="tree-twist" aria-hidden="true">›</span>MCP ツール<span class="ctx-item-count">101</span></summary><p class="ctx-item-example">表示例 <code>github / pull_request_read</code></p></details>
+                          <details class="ctx-group"><summary><span class="tree-twist" aria-hidden="true">›</span>メモリファイル<span class="ctx-item-count">9</span></summary><p class="ctx-item-example">表示例 <code>CLAUDE.md</code>、<code>.claude/rules/</code> 内のルール</p></details>
+                          <details class="ctx-group"><summary><span class="tree-twist" aria-hidden="true">›</span>カスタムエージェント<span class="ctx-item-count">17</span></summary><p class="ctx-item-example">定義の説明文の使用量。左側に出す実行状況とは別。</p></details>
+                        </div>
+                      </div>
+                    </details>
+                    <div class="local-only"><h3><svg class="icon" aria-hidden="true"><use href="#i-meter"/></svg>コンテキスト</h3><p class="no-context">未計測 · 計測値が届いたら表示</p></div>
+                  </section>
+                  <section class="rail-block">
+                    <h3><svg class="icon" aria-hidden="true"><use href="#i-diff"/></svg>変更</h3>
+                    <details class="pr-box pr-only" id="pr-card">
+                      <summary>
+                        <span class="pr-heading"><svg class="icon" aria-hidden="true"><use href="#i-branch"/></svg><span class="pr-name">キーボード操作を整理</span><span class="chevron" aria-hidden="true">▾</span></span>
+                        <span class="pr-stat"><span class="pr-id">PR #1477</span> <span class="diff-stats"><span class="plus">+301</span> <span class="minus">−0</span></span><span class="ci">✓ CI 成功</span></span>
+                      </summary>
+                      <div class="expanded">ベース <code>main</code> · チェック 2 / 2 成功<br><a href="#view-changes">PR カードの操作仕様へ ↓</a></div>
+                    </details>
+                    <p class="local-only aside-status">このブランチに対応する PR はありません</p>
+                    <details class="local-box" id="local-diff">
+                      <summary class="local-stat"><span>未コミット 3 ファイル</span><span class="diff-stats"><span class="plus">+18</span> <span class="minus">−4</span></span><span class="chevron" aria-hidden="true">▾</span></summary>
+                      <ul class="diff-files">
+                        <li><code>src/keyboard.ts</code><span class="diff-stats"><span class="plus">+8</span> <span class="minus">−2</span></span></li>
+                        <li><code>src/shortcuts.ts</code><span class="diff-stats"><span class="plus">+6</span> <span class="minus">−0</span></span></li>
+                        <li><code>tests/keyboard.test.ts</code><span class="diff-stats"><span class="plus">+4</span> <span class="minus">−2</span></span></li>
+                      </ul>
+                    </details>
+                  </section>
+                </div>
+                <dl class="rail-compact inline-only">
+                  <div><dt>環境</dt><dd><strong>design-composer</strong><code>feature/keyboard-navigation</code></dd></div>
+                  <div><dt>コンテキスト</dt><dd><strong>28%</strong><code>28.1万 / 100万</code></dd></div>
+                  <div><dt>変更</dt><dd><span>PR #1477 <span class="diff-stats"><span class="plus">+301</span> <span class="minus">−0</span></span></span><span>未コミット <span class="diff-stats"><span class="plus">+18</span> <span class="minus">−4</span></span></span></dd></div>
+                </dl>
+              </aside>
+
+              <div class="composer" aria-label="入力欄のイメージ">
+                <div class="input-demo"><b aria-hidden="true">›</b><span>メッセージを入力…</span></div>
+                <div class="composer-note"><kbd>/rail</kbd>　セッションの詳細を表示</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="below-preview">「コンテキスト」を押すと色ごとの内訳を表示します。「ビュー」の項目は下の対応仕様へ移動します。PR カードと未コミットの行も展開できます。</p>
+      </fieldset>
+    </section>
+
+    <section id="explorer" class="section" aria-labelledby="explorer-title">
+      <div class="section-id">01 / EXPLORER</div>
+      <h2 id="explorer-title">左にサブエージェントとフォルダ</h2>
+      <p class="section-copy">Herdr のように、会話を閉じずに進捗を確認する。左は「誰が何をしているか」「どこにファイルがあるか」、右は「今のブランチ・コンテキスト・変更」と役割を分ける。</p>
+      <fieldset class="demo explorer-demo">
+        <legend class="sr">探索パネルの配置を比較</legend>
+        <input class="scene-input" type="radio" name="explorer-layout" id="ex-split" checked>
+        <input class="scene-input" type="radio" name="explorer-layout" id="ex-tabs">
+        <input class="scene-input ex-view-input" type="radio" name="explorer-tab" id="ex-tab-overview" checked>
+        <input class="scene-input ex-view-input" type="radio" name="explorer-tab" id="ex-tab-agents">
+        <input class="scene-input ex-view-input" type="radio" name="explorer-tab" id="ex-tab-files">
+        <div class="demo-bar">
+          <div class="scene-picker">
+            <label for="ex-split">左右に置く構想</label>
+            <label for="ex-tabs">Mod 単体の右タブ案</label>
+          </div>
+          <span class="demo-note split-only">左・会話・右 ／ 構想モック</span>
+          <span class="demo-note tabs-only">会話・右 ／ Mod 単体で作る案</span>
+        </div>
+        <div class="preview">
+          <div class="terminal">
+            <div class="terminal-top">
+              <div class="terminal-title"><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><span>Claude Code · design-composer</span></div>
+              <span class="terminal-mode"><span class="split-only">3 COLUMNS</span><span class="tabs-only">RIGHT DOCK</span></span>
+            </div>
+            <div class="ex-layout">
+              <aside class="ex-side" aria-labelledby="explore-demo-title">
+                <h3 class="ex-heading" id="explore-demo-title"><svg class="icon" aria-hidden="true"><use href="#i-rail"/></svg><span class="split-only">探索</span><span class="tabs-only">セッション</span></h3>
+                <div class="ex-tabs-bar" role="group" aria-label="右ペインの表示内容">
+                  <label for="ex-tab-overview">概要</label>
+                  <label for="ex-tab-agents">サブエージェント</label>
+                  <label for="ex-tab-files">ファイル</label>
+                </div>
+                <div class="ex-summary ex-block">
+                  <div class="env-line"><strong>DIO0550/design-composer</strong></div>
+                  <div class="env-line"><svg class="icon" aria-hidden="true"><use href="#i-branch"/></svg><code>feature/keyboard-navigation</code></div>
+                  <dl class="rail-compact">
+                    <div><dt>コンテキスト</dt><dd><strong>28%</strong><code>28.1万 / 100万</code></dd></div>
+                    <div><dt>変更</dt><dd>PR #1477 <span class="diff-stats"><span class="plus">+301</span> <span class="minus">−0</span></span></dd></div>
+                  </dl>
+                </div>
+                <section class="ex-agents ex-block" aria-labelledby="explore-agents-title">
+                  <h4 id="explore-agents-title"><svg class="icon" aria-hidden="true"><use href="#i-task"/></svg>サブエージェント<span class="ex-count">3</span></h4>
+                  <ul class="agent-list">
+                    <li><details><summary><span class="agent-marker agent-active" aria-hidden="true">●</span>実装レビュー<span class="agent-badge agent-active">実行中</span></summary><div class="agent-peek">キーボード操作の実装と差分を確認中。</div></details></li>
+                    <li><details><summary><span class="agent-marker agent-waiting" aria-hidden="true">◇</span>テスト確認<span class="agent-badge agent-waiting">待機</span></summary><div class="agent-peek">前の作業が終わるまで待機中。</div></details></li>
+                    <li><details><summary><span class="agent-marker agent-done" aria-hidden="true">✓</span>構成の調査<span class="agent-badge agent-done">完了</span></summary><div class="agent-peek">変更対象のファイルを確認済み。</div></details></li>
+                  </ul>
+                </section>
+                <section class="ex-files ex-block" aria-labelledby="explore-files-title">
+                  <h4 id="explore-files-title"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>フォルダ<span class="ex-count">WORKTREE</span></h4>
+                  <ul class="file-list">
+                    <li><details class="directory" open><summary><span class="tree-twist" aria-hidden="true">›</span><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>src</summary>
+                      <ul>
+                        <li><details class="file-peek"><summary><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg><code>keyboard.ts</code><span class="file-state" aria-label="変更あり">M</span></summary><div class="file-description"><code>src/keyboard.ts</code><br>キー入力と画面操作の対応。</div></details></li>
+                        <li><details class="file-peek"><summary><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg><code>shortcuts.ts</code><span class="file-state" aria-label="変更あり">M</span></summary><div class="file-description"><code>src/shortcuts.ts</code><br>ショートカットの定義。</div></details></li>
+                      </ul>
+                    </details></li>
+                    <li><details class="directory"><summary><span class="tree-twist" aria-hidden="true">›</span><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>tests</summary>
+                      <ul><li><details class="file-peek"><summary><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg><code>keyboard.test.ts</code><span class="file-state" aria-label="変更あり">M</span></summary><div class="file-description"><code>tests/keyboard.test.ts</code><br>キー入力の振る舞いを確認するテスト。</div></details></li></ul>
+                    </details></li>
+                    <li><details class="file-peek"><summary><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg><code>README.md</code></summary><div class="file-description">プロジェクトの説明。変更なし。</div></details></li>
+                  </ul>
+                </section>
+              </aside>
+              <div class="chat" aria-label="会話のサンプル">
+                <div class="shell">$ claude</div>
+                <div class="turn"><span class="turn-marker" aria-hidden="true">›</span><span>レビューとテストの状況を確認したい</span></div>
+                <div class="turn reply"><span class="turn-marker" aria-hidden="true">✦</span><span>レビューを進めています。変更は <code>src/</code> と <code>tests/</code> にあります。</span></div>
+              </div>
+              <div class="composer" aria-label="入力欄のイメージ"><div class="input-demo"><b aria-hidden="true">›</b><span>メッセージを入力…</span></div></div>
+              <aside class="ex-right" aria-labelledby="ex-status-title">
+                <h3 class="ex-heading" id="ex-status-title"><svg class="icon" aria-hidden="true"><use href="#i-rail"/></svg>セッション</h3>
+                <div class="ex-status">
+                  <div class="ex-block"><h4>環境</h4><div class="env-line"><strong>DIO0550/design-composer</strong></div><div class="env-line"><svg class="icon" aria-hidden="true"><use href="#i-branch"/></svg><code>feature/keyboard-navigation</code></div></div>
+                  <div class="ex-block"><h4>コンテキスト</h4><div class="context-row"><b>28%</b><span>28.1万 / 100万</span></div><meter class="context-bar" min="0" max="100" value="28" aria-label="コンテキスト使用率">28%</meter></div>
+                  <div class="ex-block"><h4>変更</h4><div class="ex-change-counts"><div><span>PR #1477</span><span class="diff-stats"><span class="plus">+301</span> <span class="minus">−0</span></span></div><div><span>未コミット 3</span><span class="diff-stats"><span class="plus">+18</span> <span class="minus">−4</span></span></div></div></div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+        <p class="below-preview">サブエージェントの行やフォルダは展開できます。右タブ案では「概要・サブエージェント・ファイル」を切り替えられます。どちらもサンプル表示です。</p>
+      </fieldset>
+
+      <div class="explorer-options">
+        <article class="card">
+          <h3><svg class="icon" aria-hidden="true"><use href="#i-task"/></svg>サブエージェント</h3>
+          <p><code>$.agent.list()</code> で今のセッションの名前・タスク・状態を表示する。まず行を開いて概要を読む。会話を切り替えるなら明示的な「会話を開く」と「本編に戻る」を用意する。端末で <code>$.ui.view()</code> を使うと入力先も変わるため、展開や選択だけでは呼ばない。</p>
+        </article>
+        <article class="card">
+          <h3><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>フォルダツリー</h3>
+          <p>現在の worktree を起点に、フォルダを開くと直下の階層を読む。最初は名前と読み取りプレビューだけ。あると便利なのは、Git の変更印と「変更ありだけ見る」切り替え。</p>
+        </article>
+      </div>
+      <div class="rule">
+        <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+        <p><strong>Mod 単体なら、まず右側のタブで中身を作れる。</strong> 公開 Mods API の CLI ペインは右か入力欄の上で、独立した左ペインの指定はできない。左右を同時に常駐させる構想では、tmux など外側で左を描く UI と、現在のセッションの状態をそこへ渡す仕組みが別に必要。</p>
+      </div>
+    </section>
+
+    <section id="contents" class="section" aria-labelledby="contents-title">
+      <div class="section-id">02 / OVERVIEW</div>
+      <h2 id="contents-title">まず見えるようにする3つ</h2>
+      <div class="cards">
+        <article class="card">
+          <h3><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>環境</h3>
+          <p>リポジトリ、現在のブランチ、作業フォルダを表示。<code>$.session.cwd()</code> と Git から取得する。worktree を使っているなら、実際の作業先が分かるようにする。</p>
+        </article>
+        <article class="card">
+          <h3><svg class="icon" aria-hidden="true"><use href="#i-meter"/></svg>コンテキスト</h3>
+          <p>普段は <code>$.session.usage()</code> の使用数・上限・割合。展開したときはカテゴリ別の推計と項目の詳細を表示する。計測値が来るまでは未計測。</p>
+        </article>
+        <article class="card">
+          <h3><svg class="icon" aria-hidden="true"><use href="#i-diff"/></svg>変更</h3>
+          <p>現在のブランチの PR を <code>gh pr view --json</code> で取得。PR の追加・削除と CI、作業ツリーの未コミット差分を別々の行に出す。</p>
+        </article>
+      </div>
+      <details class="checks">
+        <summary><span aria-hidden="true">›</span>コンテキストの内訳をつなぐ</summary>
+        <ul class="checklist">
+          <li>展開時に <code>$.session.usage({ breakdown: "summary" })</code> を試す。公開型定義上はローカル推計。取得できない版では合計だけを残し、<code>/context</code> を案内する。</li>
+          <li>展開中の使用率・行・バーは、同じ内訳の <code>rawMaxTokens</code> を分母にそろえる。普段の表示と推計の数字が異なる場合がある。</li>
+          <li><code>used</code>・<code>buffer</code>・<code>free</code> は色を分ける。<code>deferred</code> は表には出すが、使用量やバーには足さない。</li>
+          <li>項目の一覧は返却データがある場合だけ展開できるようにする。右のカスタムエージェントは定義、左のサブエージェントは実行状況。</li>
+        </ul>
+      </details>
+      <div class="rule">
+        <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+        <p><strong>端末幅が足りないときは入力欄の上へ。</strong> 配置は Claude Code に任せ、Mod 側は <code>dock</code> なら全体、<code>inline</code> なら短い表示に切り替える。CLI での幅やフォーカスの挙動は初回の実機確認に含める。</p>
+      </div>
+    </section>
+
+    <section id="views" class="section" aria-labelledby="views-title">
+      <div class="section-id">03 / VIEW MENU</div>
+      <h2 id="views-title">「ビュー」から何を開くか</h2>
+      <p class="section-copy">Desktop と同じ並びで、環境・コンテキストとは別のメニューを開く。右端には CLI のコマンドや動作を出し、キー割り当ては実機で競合を確認してから決める。</p>
+      <table class="plan-table">
+        <caption class="sr">各メニュー項目の動作と実装範囲</caption>
+        <thead><tr><th scope="col">表示</th><th scope="col">選んだときの動作</th></tr></thead>
+        <tbody>
+          <tr id="view-changes"><th scope="row"><span class="row-title"><svg class="icon" aria-hidden="true"><use href="#i-diff"/></svg>変更</span></th><td>作業ツリーの差分は <code>/diff</code>。PR カードは詳細を表示し、PR 全体の差分は GitHub で開く。<span class="secondary">最初に接続する操作。</span></td></tr>
+          <tr id="view-browser"><th scope="row"><span class="row-title"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>ブラウザ</span></th><td>PR や明示的に指定した URL を外部ブラウザで開く。<span class="secondary">埋め込みは対象外。</span></td></tr>
+          <tr id="view-files"><th scope="row"><span class="row-title"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>ファイル</span></th><td><a href="#explorer">探索のファイルツリー</a>を開き、ファイルを選んで読み取りプレビュー。<span class="secondary">後続。エディタは含めない。</span></td></tr>
+          <tr id="view-terminal"><th scope="row"><span class="row-title"><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg>ターミナル</span></th><td>tmux 使用時に同じ作業フォルダで別ペインを開く。<span class="secondary">後続。tmux がなければ非対応として表示。</span></td></tr>
+          <tr id="view-chat"><th scope="row"><span class="row-title"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>サイドチャット</span></th><td><code>/btw</code> で本編に混ぜずに質問する。<span class="secondary">後続。下書きを上書きしない動線を確認。</span></td></tr>
+          <tr id="view-tasks"><th scope="row"><span class="row-title"><svg class="icon" aria-hidden="true"><use href="#i-task"/></svg>背景タスク</span></th><td><code>/tasks</code> で今のセッション内のバックグラウンド作業を確認する。<span class="secondary">後続。他セッションの一覧は出さない。</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="plan" class="section" aria-labelledby="plan-title">
+      <div class="section-id">04 / BUILD ORDER</div>
+      <h2 id="plan-title">作る順番</h2>
+      <p class="section-copy">初版のゴールは、3つの概要を会話の横で見られることと、変更の詳細に進めること。</p>
+      <ol class="iteration">
+        <li class="stage"><span class="step">01</span><h3>固定データで描く</h3><p><code>/rail</code> で <code>$.ui.open</code> を呼び、<code>ui.render</code> で自分の <code>Pane</code> だけ描く。開閉と狭い端末の配置を確認。</p></li>
+        <li class="stage"><span class="step">02</span><h3>セッションと Git</h3><p>作業先、コンテキストの合計、手元の差分を接続。内訳は折りたたみとして後から検証する。</p></li>
+        <li class="stage"><span class="step">03</span><h3>PR カードを追加</h3><p>手元の情報を先に出し、PR 情報を後から差し込む。PR なし、取得失敗、CI 実行中を区別する。</p></li>
+        <li class="stage"><span class="step">04</span><h3>ビューを開く</h3><p>変更の導線からつなぐ。ボタンからの <code>/diff</code> 起動は実機で確認し、難しければコマンドを案内する。</p></li>
+      </ol>
+      <div class="rule">
+        <svg class="icon" aria-hidden="true"><use href="#i-task"/></svg>
+        <p><strong>その次は探索。</strong> サブエージェントの一覧とファイルツリーを、まず右ペイン内で切り替えられるようにする。両方を見ながら作業したくなったら、左常駐のための外側 UI を検討する。</p>
+      </div>
+      <details class="checks">
+        <summary><span aria-hidden="true">›</span>初版の動作確認</summary>
+        <ul class="checklist">
+          <li>幅のある fullscreen では会話の右に表示され、狭い場合は入力欄の上に出る。</li>
+          <li>開閉と <kbd>Tab</kbd> / <kbd>Enter</kbd> で操作でき、会話の入力に戻れる。</li>
+          <li>コミット後は未コミット差分だけが減り、PR の差分行数は独立して表示される。</li>
+          <li>PR なしと取得失敗を別表示にする。GitHub に接続できなくても作業ツリーとコンテキストは確認できる。</li>
+          <li>内訳を開閉しても会話の入力に戻れる。遅延読み込みの項目は使用量を増やさない。</li>
+          <li>同じリポジトリの別 worktree で、現在のブランチとフォルダが表示される。</li>
+        </ul>
+      </details>
+    </section>
+
+    <footer>
+      <p>CLI 向けの設計案です。プレビューはブラウザ用のモックで、端末の色や文字幅とは異なります。</p>
+      <div class="links">
+        <a href="https://code.claude.com/docs/en/plugins/mods/interface">公式 Mods UI ガイド</a>
+        <a href="https://code.claude.com/docs/en/plugins/mods/reference">Mods API リファレンス</a>
+        <a href="https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts">内訳の公開型定義</a>
+        <a href="https://code.claude.com/docs/en/commands">Claude Code コマンド</a>
+        <a href="https://cli.github.com/manual/gh_pr_view">GitHub CLI の PR 項目</a>
+        <a href="https://github.com/herdrdev/herdr/blob/master/distribution/agent-guide.md">Herdr のサイドバー</a>
+      </div>
+    </footer>
+  </main>
+</body>
+</html>
