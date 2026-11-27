@@ -1,0 +1,5 @@
+{
+  "name": "session-rail",
+  "description": "Open a preview of the current session's sidebar in Claude Code CLI.",
+  "version": "0.0.1"
+}
