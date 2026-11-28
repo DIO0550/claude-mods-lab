@@ -1,8 +1,19 @@
 import type { EngineInterface } from "claude-code"
 import type { SummarySources } from "../../application/read-rail-summary/read-rail-summary.ts"
-import { readWorktree } from "../git/read-worktree.ts"
+import { readWorktree, type RunGit } from "../git/read-worktree.ts"
+import { readPullRequest, type RunGh } from "../github/read-pull-request/read-pull-request.ts"
 
 export function createSummarySources($: Pick<EngineInterface, "session" | "process">): SummarySources {
+  const git: RunGit = (args, cwd) => $.process.run(["git", "--no-optional-locks", ...args], {
+    cwd,
+    env: { LC_ALL: "C", GIT_OPTIONAL_LOCKS: "0" },
+    timeoutMs: 2500,
+  })
+  const gh: RunGh = (args, cwd) => $.process.run(["gh", ...args], {
+    cwd,
+    env: { LC_ALL: "C", GH_PROMPT_DISABLED: "1", GH_NO_UPDATE_NOTIFIER: "1" },
+    timeoutMs: 5000,
+  })
   return {
     sessionId: () => $.session.id(),
     workingDirectory: () => $.session.cwd(),
@@ -32,13 +43,7 @@ export function createSummarySources($: Pick<EngineInterface, "session" | "proce
         ],
       }
     },
-    worktree: (cwd) => readWorktree(
-      (args, dir) => $.process.run(["git", "--no-optional-locks", ...args], {
-        cwd: dir,
-        env: { LC_ALL: "C", GIT_OPTIONAL_LOCKS: "0" },
-        timeoutMs: 2500,
-      }),
-      cwd,
-    ),
+    worktree: (cwd) => readWorktree(git, cwd),
+    pullRequest: (target) => readPullRequest(gh, git, target),
   }
 }

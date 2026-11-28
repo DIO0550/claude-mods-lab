@@ -20,8 +20,10 @@ test("右ペインは読み込み後に現在のセッションと worktree を�
     "変更",
     "未コミット 1件 · 未追跡 1件",
     "+2 / −1",
+    "ローカル差分を開く (/diff)",
+    "このブランチに対応する PR はありません",
   ])
-  assert.deepEqual(api.redraws, ["ui.render"])
+  assert.deepEqual(api.redraws, ["ui.render", "ui.render"])
   assert.equal(api.gitCalls[0]?.cwd, CWD)
   assert.ok(api.gitCalls.slice(1).every(({ cwd }) => cwd === ROOT))
   const calls = api.gitCalls.length
@@ -37,6 +39,7 @@ test("入力欄上では 3 セクションを要約する", async () => {
     "環境  project · feature/rail",
     "コンテキスト  21%",
     "変更  +2 / −1 · 未追跡 1件",
+    "ローカル差分を開く (/diff)",
     "▸ 内訳を表示",
   ])
 })
@@ -66,6 +69,6 @@ test("コンテキストを取得できない場合も、Git 情報は表示す�
   await fire("command.run", {})
   await setImmediate()
   assert.deepEqual(await render("inline"), [
-    "環境  project · feature/rail", "コンテキスト  取得不可", "変更  +2 / −1 · 未追跡 1件", "▸ 内訳を表示",
+    "環境  project · feature/rail", "コンテキスト  取得不可", "変更  +2 / −1 · 未追跡 1件", "ローカル差分を開く (/diff)", "▸ 内訳を表示",
   ])
 })
