@@ -1,6 +1,6 @@
-import type { ContextUsage } from "../domain/context-usage.ts"
-import type { RailSummary } from "../domain/session-summary.ts"
-import type { Checkout, WorktreeSummary } from "../domain/worktree.ts"
+import type { ContextUsage } from "../../domain/context-usage/context-usage.ts"
+import type { RailSummary } from "../../domain/session-summary.ts"
+import type { Checkout, WorktreeSummary } from "../../domain/worktree.ts"
 
 type Section = { label: string; compact: string; detail: readonly string[] }
 

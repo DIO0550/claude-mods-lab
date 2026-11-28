@@ -1,4 +1,4 @@
-import type { ContextUsage } from "./context-usage.ts"
+import type { ContextUsage } from "./context-usage/context-usage.ts"
 import type { WorktreeSummary } from "./worktree.ts"
 
 export type SessionScope = { id: string | null; cwd: string | null }

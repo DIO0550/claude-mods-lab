@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { RailSummary } from "../../plugins/session-rail/src/domain/session-summary.ts"
-import { presentRail } from "../../plugins/session-rail/src/presentation/rail-view.ts"
+import type { RailSummary } from "../../../domain/session-summary.ts"
+import { presentRail } from "../rail-view.ts"
 
 const base: RailSummary = {
   scope: { id: "session-a", cwd: "/workspace/folder" },

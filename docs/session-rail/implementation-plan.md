@@ -20,7 +20,7 @@ Desktop 本体の変更、別セッションへの切り替え、埋め込みブ
 
 ## 2. 最初に実機で確かめる
 
-実装は `plugins/session-rail/` に置く。`node --test "tests/**/*.test.ts"` で開閉、実データの表示、Git の集計を確認できる。以下は Claude Code 実機での確認手順。
+実装は `plugins/session-rail/` に置く。`node --test "plugins/**/__tests__/*.ts"` で開閉、実データの表示、Git の集計を確認できる。以下は Claude Code 実機での確認手順。
 
 型定義やモックだけでは、ペインの位置、フォーカス、組み込みコマンドの起動までは確定できない。まず、Mod をローカルで読み込み、開閉と配置から確かめる。
 
@@ -81,7 +81,7 @@ stateDiagram-v2
 | `plugins/session-rail/src/infrastructure/claude-code/` | Claude Code のセッション API とコマンド実行を取得元につなぐ |
 | `plugins/session-rail/src/infrastructure/git/` | worktree を検出し、Git のコマンド出力をドメインの値に変換する |
 | `plugins/session-rail/src/presentation/` | 表示文言、行数、コンパクト表示と詳細表示の組み立て |
-| `tests/` | 各層の単体テスト、実 Git を使うテスト、Mod の開閉・描画の結合テスト |
+| 対象の `.ts` に隣接する `__tests__/` | 各層の単体テスト、実 Git を使うテスト、Mod の結合テスト。`対象.カテゴリ.ts` で分け、`describe` は使わない |
 | `docs/session-rail/` | 実装計画と HTML の画面案 |
 
 `domain` は外部 API と描画に依存しない。`application` は `domain` と自分が定義した取得口だけに依存し、Claude Code や Git を直接呼ばない。たとえば Git が返す detached HEAD はドメインではコミット ID として保持し、7 桁に短くするのは表示側だけで行う。

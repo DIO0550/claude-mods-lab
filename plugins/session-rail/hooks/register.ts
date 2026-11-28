@@ -1,5 +1,5 @@
 import type { EngineInterface, On } from "claude-code"
-import { createRailSummaryState } from "../src/application/rail-summary-state.ts"
+import { createRailSummaryState } from "../src/application/rail-summary-state/rail-summary-state.ts"
 import { createSummarySources } from "../src/infrastructure/claude-code/summary-sources.ts"
 import { renderRailPane } from "../src/presentation/render-rail-pane.ts"
 

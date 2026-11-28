@@ -1,5 +1,5 @@
 import type { EngineInterface } from "claude-code"
-import type { SummarySources } from "../../application/read-rail-summary.ts"
+import type { SummarySources } from "../../application/read-rail-summary/read-rail-summary.ts"
 import { readWorktree } from "../git/read-worktree.ts"
 
 export function createSummarySources($: Pick<EngineInterface, "session" | "process">): SummarySources {

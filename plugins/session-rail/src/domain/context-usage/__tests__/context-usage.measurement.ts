@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { summarizeContext } from "../../plugins/session-rail/src/domain/context-usage.ts"
+import { summarizeContext } from "../context-usage.ts"
 
 test("未計測と実際の 0% を区別する", () => {
   assert.deepEqual(summarizeContext({ window: 200_000 }), { kind: "unmeasured" })

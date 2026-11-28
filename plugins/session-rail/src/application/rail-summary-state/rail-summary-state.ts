@@ -1,5 +1,5 @@
-import { sameScope, type RailSummary } from "../domain/session-summary.ts"
-import { readRailSummary, readScope, type SummarySources } from "./read-rail-summary.ts"
+import { sameScope, type RailSummary } from "../../domain/session-summary.ts"
+import { readRailSummary, readScope, type SummarySources } from "../read-rail-summary/read-rail-summary.ts"
 
 export function createRailSummaryState() {
   let summary: RailSummary | undefined

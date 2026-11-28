@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { readRailSummary, type SummarySources } from "../../plugins/session-rail/src/application/read-rail-summary.ts"
+import { readRailSummary, type SummarySources } from "../read-rail-summary.ts"
 
 const CWD = "/linked/src"
 const WORKTREE = {

@@ -19,10 +19,12 @@ claude --plugin-dir ./plugins/session-rail
 
 `plugins/session-rail/src/` はドメイン、取得と更新の流れ、外部 API との接続、表示に分かれています。`hooks/register.ts` が各層をつなぎます。各フォルダの役割は実装計画を参照してください。
 
+テストは対象の `.ts` の隣の `__tests__/` に置き、`register.command.ts` のように `対象.カテゴリ.ts` で分けます。`describe` は使わず、トップレベルの `test()` で書きます。テストの規約は [AGENTS.md](AGENTS.md) にあります。
+
 各層の単体テスト、ホスト API をスタブにした開閉・描画テスト、一時リポジトリを使った Git テストは Node.js 24 と Git で実行できます。
 
 ```sh
-node --test "tests/**/*.test.ts"
+node --test "plugins/**/__tests__/*.ts"
 ```
 
 - [実装計画](docs/session-rail/implementation-plan.md)

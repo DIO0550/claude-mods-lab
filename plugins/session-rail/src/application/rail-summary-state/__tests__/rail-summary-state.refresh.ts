@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { createRailSummaryState } from "../../plugins/session-rail/src/application/rail-summary-state.ts"
-import type { SummarySources } from "../../plugins/session-rail/src/application/read-rail-summary.ts"
+import { createRailSummaryState } from "../rail-summary-state.ts"
+import type { SummarySources } from "../../read-rail-summary/read-rail-summary.ts"
 
 const sources: SummarySources = {
   sessionId: async () => "session",

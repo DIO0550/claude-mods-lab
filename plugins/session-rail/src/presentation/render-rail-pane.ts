@@ -1,6 +1,6 @@
 import type { Elements } from "claude-code"
 import type { RailSummary } from "../domain/session-summary.ts"
-import { presentRail } from "./rail-view.ts"
+import { presentRail } from "./rail-view/rail-view.ts"
 
 export function renderRailPane(
   { Box, Text }: Pick<Elements["terminal"], "Box" | "Text">,
