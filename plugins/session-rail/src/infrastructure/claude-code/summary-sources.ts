@@ -1,9 +1,10 @@
 import type { EngineInterface } from "claude-code"
 import type { SummarySources } from "../../application/read-rail-summary/read-rail-summary.ts"
+import { Subagent } from "../../domain/subagent/subagent.ts"
 import { readWorktree, type RunGit } from "../git/read-worktree.ts"
 import { readPullRequest, type RunGh } from "../github/read-pull-request/read-pull-request.ts"
 
-export function createSummarySources($: Pick<EngineInterface, "session" | "process">): SummarySources {
+export function createSummarySources($: Pick<EngineInterface, "session" | "process" | "agent">): SummarySources {
   const git: RunGit = (args, cwd) => $.process.run(["git", "--no-optional-locks", ...args], {
     cwd,
     env: { LC_ALL: "C", GIT_OPTIONAL_LOCKS: "0" },
@@ -45,5 +46,15 @@ export function createSummarySources($: Pick<EngineInterface, "session" | "proce
     },
     worktree: (cwd) => readWorktree(git, cwd),
     pullRequest: (target) => readPullRequest(gh, git, target),
+    async subagents() {
+      const roster = await $.agent.list()
+      return roster.flatMap((entry) => {
+        if (entry.kind !== "local_agent") {
+          return []
+        }
+        const agent = Subagent.fromObservation(entry)
+        return agent ? [agent] : []
+      })
+    },
   }
 }

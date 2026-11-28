@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import type { CommandRunResult, CommandSpec, On, PaneOpenArgs, SessionContextBreakdown, SessionUsage, SessionUsageArgs, UiOpenResult } from "claude-code"
+import type { AgentInfo, CommandRunResult, CommandSpec, On, PaneOpenArgs, SessionContextBreakdown, SessionUsage, SessionUsageArgs, UiOpenResult } from "claude-code"
 import { register } from "../../register.ts"
 
 export const PANE_ID = "claude-mods-lab-session-rail"
@@ -32,6 +32,8 @@ function createApi(openResult: UiOpenResult) {
   const ghCalls: typeof gitCalls = []
   const commandRuns: string[] = []
   const toasts: string[] = []
+  const agentListCalls: string[] = []
+  const viewChanges: (string | undefined)[] = []
   const usageCalls: (SessionUsageArgs | undefined)[] = []
   const output = (stdout: string) => ({ stdout, stderr: "", exitCode: 0, isStdoutTruncated: false, isStderrTruncated: false })
   const sessionState = {
@@ -41,6 +43,7 @@ function createApi(openResult: UiOpenResult) {
     usage: { tokens: 42_000, window: 200_000, percent: 21 },
     breakdown: undefined as SessionContextBreakdown | undefined,
     gh: { ...output(""), exitCode: 1, stderr: 'no pull requests found for branch "feature/rail"' },
+    agents: [] as AgentInfo[],
   }
 
   return {
@@ -53,6 +56,8 @@ function createApi(openResult: UiOpenResult) {
     ghCalls,
     commandRuns,
     toasts,
+    agentListCalls,
+    viewChanges,
     usageCalls,
     sessionState,
     session: {
@@ -63,6 +68,12 @@ function createApi(openResult: UiOpenResult) {
         usageCalls.push(args)
         const context = args?.breakdown ? { ...sessionState.usage, breakdown: sessionState.breakdown } : sessionState.usage
         return { startedAt: 0, rateLimits: [], context }
+      },
+    },
+    agent: {
+      async list(): Promise<AgentInfo[]> {
+        agentListCalls.push(sessionState.id)
+        return sessionState.agents
       },
     },
     process: {
@@ -117,6 +128,9 @@ function createApi(openResult: UiOpenResult) {
       },
       toast(message: string) {
         toasts.push(message)
+      },
+      async view({ agentId }: { agentId?: string }) {
+        viewChanges.push(agentId)
       },
       resolve() {
         return {

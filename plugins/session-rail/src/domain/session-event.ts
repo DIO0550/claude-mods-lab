@@ -12,10 +12,14 @@ export const TurnOrigin = {
 }
 
 export type SessionEvent =
+  | { kind: "turn-started"; origin: TurnOrigin }
   | { kind: "turn-completed"; origin: TurnOrigin }
   | { kind: "session-ended" }
 
 export const SessionEvent = {
+  turnStarted(origin: TurnOrigin): SessionEvent {
+    return { kind: "turn-started", origin }
+  },
   turnCompleted(origin: TurnOrigin): SessionEvent {
     return { kind: "turn-completed", origin }
   },

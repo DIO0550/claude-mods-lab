@@ -1,5 +1,6 @@
 import type { EngineInterface, On } from "claude-code"
-import { createRailSummaryState, type RailEvent } from "../src/application/rail-summary-state/rail-summary-state.ts"
+import { createRailSummaryState, type RailEvent, type RailTab } from "../src/application/rail-summary-state/rail-summary-state.ts"
+import type { SubagentAction } from "../src/application/subagent-list-state/subagent-list-state.ts"
 import { SessionEvent, TurnOrigin } from "../src/domain/session-event.ts"
 import { createSummarySources } from "../src/infrastructure/claude-code/summary-sources.ts"
 import { renderRailPane } from "../src/presentation/render-rail-pane.ts"
@@ -64,7 +65,7 @@ export function register(on: On): void {
       title: TITLE,
       closeOnEscape: true,
       columns: 42,
-      rows: 6,
+      rows: 7,
     })
     const placement = pane.isPlaced ? "placed" : "unplaced"
     dispatch($, state, { kind: "pane-placement-finished", opening, placement })
@@ -87,6 +88,14 @@ export function register(on: On): void {
     return next(event)
   })
 
+  on("turn.start", async ($, event, next) => {
+    const result = await next(event)
+    if (event.agentId !== undefined) {
+      dispatch($, state, SessionEvent.turnStarted(TurnOrigin.fromAgentId(event.agentId)))
+    }
+    return result
+  })
+
   on("turn.complete", async ($, event, next) => {
     const result = await next(event)
     const origin = TurnOrigin.fromAgentId(event.agentId)
@@ -104,11 +113,23 @@ export function register(on: On): void {
     const snapshot = state.snapshot()
     const pane = state.pane()
     const ui = $.ui.resolve(event)
-    if (!pane || snapshot.kind !== "ready") {
+    if (!pane) {
       return renderRailPane(ui, layout, snapshot)
+    }
+    const tabs = {
+      active: state.tab(),
+      select: (tab: RailTab) => dispatch($, state, { kind: "tab-selected", pane, tab }),
+      subagents: {
+        snapshot: state.subagents(),
+        dispatch: (action: SubagentAction) => dispatch($, state, { kind: "subagent-control", pane, action }),
+      },
+    }
+    if (snapshot.kind !== "ready") {
+      return renderRailPane(ui, layout, snapshot, { tabs })
     }
     const { scope, worktree } = snapshot.summary
     return renderRailPane(ui, layout, snapshot, {
+      tabs,
       context: {
         snapshot: state.context(),
         dispatch: (action) => dispatch($, state, { kind: "context-control", pane, scope, action }),
