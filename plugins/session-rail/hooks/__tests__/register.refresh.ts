@@ -58,10 +58,11 @@ test("閉じる前の遅い取得結果を、新しく開いたペインへ渡�
   await fire("command.run", {})
   await setImmediate()
 
+  const redrawsForNewPane = [...api.redraws]
   delayed.resolve({ startedAt: 0, rateLimits: [], context: { tokens: 1, window: 100, percent: 1 } })
   await setImmediate()
   assert.ok((await render("inline")).includes("コンテキスト  30%"))
-  assert.deepEqual(api.redraws, ["ui.render"])
+  assert.deepEqual(api.redraws, redrawsForNewPane)
 })
 
 test("取得中に作業フォルダが変わったら、現在の作業先を読み直す", async () => {

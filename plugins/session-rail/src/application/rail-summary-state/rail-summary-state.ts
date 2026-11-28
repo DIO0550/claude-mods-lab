@@ -1,6 +1,7 @@
 import type { SessionEvent } from "../../domain/session-event.ts"
 import { SessionScope, type RailSummary } from "../../domain/session-summary.ts"
 import { createContextBreakdownState, type ContextAction } from "../context-breakdown-state/context-breakdown-state.ts"
+import { createPullRequestState } from "../pull-request-state/pull-request-state.ts"
 import { readRailSummary, readScope, type SummarySources } from "../read-rail-summary/read-rail-summary.ts"
 
 export type RailSnapshot =
@@ -25,6 +26,7 @@ type RailPorts = {
 export function createRailSummaryState() {
   let snapshot: RailSnapshot = { kind: "pending" }
   const context = createContextBreakdownState()
+  const pullRequest = createPullRequestState()
   // 配置と取得は別々に完了する。ターン終了で配置待ちの操作を取り消さない。
   let pane: PaneOpening | undefined
   let paneOpening: PaneOpening | undefined
@@ -36,6 +38,7 @@ export function createRailSummaryState() {
     paneOpening = undefined
     refreshing = undefined
     context.collapse()
+    pullRequest.clear()
   }
 
   function beginOpening(): PaneOpening {
@@ -56,6 +59,7 @@ export function createRailSummaryState() {
       }
     }
 
+    pullRequest.clear()
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const nextSummary = await readRailSummary(ports.sources)
       if (refreshing !== request) {
@@ -70,11 +74,13 @@ export function createRailSummaryState() {
           context.collapse()
         }
         snapshot = { kind: "ready", summary: nextSummary }
+        const checkingPullRequest = pullRequest.refresh(nextSummary, ports)
         if (context.snapshot().kind !== "collapsed") {
-          return context.refresh(nextSummary.scope, ports)
+          await Promise.all([context.refresh(nextSummary.scope, ports), checkingPullRequest])
+          return
         }
         ports.redraw()
-        return
+        return checkingPullRequest
       }
 
       // 作業先が変わったら前の値を消し、現在の作業先を一度読み直す。
@@ -115,5 +121,5 @@ export function createRailSummaryState() {
     }
   }
 
-  return { beginOpening, dispatch, snapshot: () => snapshot, pane: () => pane, context: context.snapshot }
+  return { beginOpening, dispatch, snapshot: () => snapshot, pane: () => pane, context: context.snapshot, pullRequest: pullRequest.snapshot }
 }

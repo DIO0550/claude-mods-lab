@@ -1,13 +1,17 @@
 import type { Elements } from "claude-code"
 import type { ContextAction, ContextBreakdownSnapshot } from "../application/context-breakdown-state/context-breakdown-state.ts"
+import type { PullRequestSnapshot } from "../application/pull-request-state/pull-request-state.ts"
 import type { RailSnapshot } from "../application/rail-summary-state/rail-summary-state.ts"
 import { presentContextBreakdown } from "./context-breakdown-view/context-breakdown-view.ts"
+import { presentPullRequest } from "./pull-request-view/pull-request-view.ts"
 import { presentRail } from "./rail-view/rail-view.ts"
 
-type TerminalElements = Pick<Elements["terminal"], "Box" | "Text" | "Button">
+type TerminalElements = Pick<Elements["terminal"], "Box" | "Text" | "Button" | "Link">
 type TerminalNode = ReturnType<TerminalElements[keyof TerminalElements]>
 type ContextView = ReturnType<typeof presentContextBreakdown>
 type ContextControls = { snapshot: ContextBreakdownSnapshot; dispatch(action: ContextAction): void }
+type ChangesControls = { pullRequest: PullRequestSnapshot; openLocalDiff?: () => Promise<void> }
+type RailControls = { context: ContextControls; changes: ChangesControls }
 
 const CATEGORY_COLORS = { used: "#78c98a", buffer: "#e0b45b", free: "#809099", deferred: "#a1a6a6" }
 
@@ -74,23 +78,60 @@ function renderContextControls(ui: TerminalElements, controls: ContextControls |
   return rows
 }
 
+function renderChangesControls(
+  { Button, Link, Text }: TerminalElements,
+  controls: ChangesControls | undefined,
+  placement: "dock" | "inline",
+): TerminalNode[] {
+  if (!controls) {
+    return []
+  }
+  const rows: TerminalNode[] = []
+  if (controls.openLocalDiff) {
+    rows.push(Button({ key: "session-rail-local-diff", label: "ローカル差分を開く (/diff)", plain: true, onPress: controls.openLocalDiff }))
+  }
+  const { pullRequest } = controls
+  if (pullRequest.kind === "none" && placement === "dock") {
+    rows.push(Text({ dimColor: true, children: ["このブランチに対応する PR はありません"] }))
+  }
+  if (pullRequest.kind === "unavailable") {
+    rows.push(Text({ dimColor: true, children: ["PR を取得できません"] }))
+  }
+  if (pullRequest.kind !== "found") {
+    return rows
+  }
+  const view = presentPullRequest(pullRequest.request)
+  if (placement === "inline") {
+    rows.push(Text({ wrap: "truncate-middle", children: [Link({ href: view.url, label: view.compact })] }))
+    return rows
+  }
+  rows.push(
+    Link({ href: view.url, label: view.link }),
+    Text({ wrap: "truncate-middle", children: [view.title] }),
+    Text({ children: [view.detail] }),
+  )
+  return rows
+}
+
 export function renderRailPane(
   ui: TerminalElements,
   { placement, columns }: { placement: "dock" | "inline"; columns: number },
   snapshot: RailSnapshot,
-  controls?: ContextControls,
+  controls?: RailControls,
 ) {
   const { Box, Text } = ui
   const [environment, context, changes] = presentRail(snapshot)
-  const view = controls?.snapshot.kind === "ready" ? presentContextBreakdown(controls.snapshot, columns) : null
-  const contextRows = renderContextControls(ui, controls, view)
+  const contextControls = controls?.context
+  const view = contextControls?.snapshot.kind === "ready" ? presentContextBreakdown(contextControls.snapshot, columns) : null
+  const contextRows = renderContextControls(ui, contextControls, view)
+  const changesRows = renderChangesControls(ui, controls?.changes, placement)
 
   if (placement !== "dock") {
     const sections = [environment, { ...context, compact: view?.overview ?? context.compact }, changes]
     const rows = sections.map(({ label, compact }) =>
       Text({ wrap: "truncate-middle", children: [`${label}  ${compact}`] }),
     )
-    return Box({ flexDirection: "column", children: [...rows, ...contextRows] })
+    return Box({ flexDirection: "column", children: [...rows, ...changesRows, ...contextRows] })
   }
 
   function section(label: string, detail: readonly string[], extra: readonly TerminalNode[] = []) {
@@ -102,6 +143,6 @@ export function renderRailPane(
   return Box({ flexDirection: "column", gap: 1, children: [
     section(environment.label, environment.detail),
     section(context.label, view ? [view.overview] : context.detail, contextRows),
-    section(changes.label, changes.detail),
+    section(changes.label, changes.detail, changesRows),
   ] })
 }

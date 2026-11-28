@@ -15,6 +15,14 @@ async function isRailPlaced($: EngineInterface): Promise<boolean> {
   return panes.some((pane) => pane.id === PANE_ID && pane.isPlaced)
 }
 
+async function openLocalDiff($: EngineInterface): Promise<void> {
+  try {
+    await $.command.run({ command: "diff" })
+  } catch {
+    $.ui.toast("差分を直接開けません。プロンプトで /diff を実行してください。")
+  }
+}
+
 function dispatch($: EngineInterface, state: RailState, event: RailEvent): void {
   // データの取得不可は各セクションで扱う。UI の切断で会話を止めない。
   void state.dispatch(event, {
@@ -99,10 +107,16 @@ export function register(on: On): void {
     if (!pane || snapshot.kind !== "ready") {
       return renderRailPane(ui, layout, snapshot)
     }
-    const { scope } = snapshot.summary
+    const { scope, worktree } = snapshot.summary
     return renderRailPane(ui, layout, snapshot, {
-      snapshot: state.context(),
-      dispatch: (action) => dispatch($, state, { kind: "context-control", pane, scope, action }),
+      context: {
+        snapshot: state.context(),
+        dispatch: (action) => dispatch($, state, { kind: "context-control", pane, scope, action }),
+      },
+      changes: {
+        pullRequest: state.pullRequest(),
+        openLocalDiff: worktree.kind === "ready" ? () => openLocalDiff($) : undefined,
+      },
     })
   })
 }

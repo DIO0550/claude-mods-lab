@@ -7,6 +7,7 @@ const sources: SummarySources = {
   context: async () => ({ tokens: 1, window: 100 }),
   contextBreakdown: async () => null,
   worktree: async () => ({ kind: "outside" }),
+  pullRequest: async () => ({ kind: "none" }),
 }
 
 export const mainTurn = { kind: "turn-completed", origin: { kind: "main" } } as const

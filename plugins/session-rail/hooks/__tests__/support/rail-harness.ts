@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import type { CommandSpec, On, PaneOpenArgs, SessionContextBreakdown, SessionUsage, SessionUsageArgs, UiOpenResult } from "claude-code"
+import type { CommandRunResult, CommandSpec, On, PaneOpenArgs, SessionContextBreakdown, SessionUsage, SessionUsageArgs, UiOpenResult } from "claude-code"
 import { register } from "../../register.ts"
 
 export const PANE_ID = "claude-mods-lab-session-rail"
@@ -8,11 +8,12 @@ export const CWD = "/workspace/rail-worktree/src"
 export const ROOT = "/workspace/rail-worktree"
 
 type Tree = {
-  type: "Box" | "Text" | "Button"
+  type: "Box" | "Text" | "Button" | "Link"
   children?: readonly (Tree | string)[]
   key?: string
   label?: string
-  onPress?: () => void
+  href?: string
+  onPress?: () => void | Promise<void>
 }
 
 type Hook = (
@@ -28,14 +29,19 @@ function createApi(openResult: UiOpenResult) {
   const closes: string[] = []
   const redraws: string[] = []
   const gitCalls: Array<{ args: readonly string[]; cwd?: string }> = []
+  const ghCalls: typeof gitCalls = []
+  const commandRuns: string[] = []
+  const toasts: string[] = []
   const usageCalls: (SessionUsageArgs | undefined)[] = []
+  const output = (stdout: string) => ({ stdout, stderr: "", exitCode: 0, isStdoutTruncated: false, isStderrTruncated: false })
   const sessionState = {
     id: "session-a",
     cwd: CWD,
+    branch: "feature/rail",
     usage: { tokens: 42_000, window: 200_000, percent: 21 },
     breakdown: undefined as SessionContextBreakdown | undefined,
+    gh: { ...output(""), exitCode: 1, stderr: 'no pull requests found for branch "feature/rail"' },
   }
-  const output = (stdout: string) => ({ stdout, stderr: "", exitCode: 0, isStdoutTruncated: false })
 
   return {
     commands,
@@ -44,6 +50,9 @@ function createApi(openResult: UiOpenResult) {
     closes,
     redraws,
     gitCalls,
+    ghCalls,
+    commandRuns,
+    toasts,
     usageCalls,
     sessionState,
     session: {
@@ -58,25 +67,36 @@ function createApi(openResult: UiOpenResult) {
     },
     process: {
       async run(args: readonly string[], options: { cwd?: string }) {
+        if (args[0] === "gh") {
+          ghCalls.push({ args, cwd: options.cwd })
+          return sessionState.gh
+        }
         gitCalls.push({ args, cwd: options.cwd })
         if (args.includes("--show-toplevel")) {
           const root = options.cwd === CWD ? ROOT : options.cwd ?? ROOT
+          if (args.includes("--symbolic-full-name")) {
+            return output(`${root}\nrefs/heads/${sessionState.branch}\n`)
+          }
           return output(`${root}\n`)
         }
         if (args.includes("--porcelain=v2")) {
-          return output([`# branch.oid ${OID}`, "# branch.head feature/rail", "1 .M fake", "? new.txt", ""].join("\0"))
+          return output([`# branch.oid ${OID}`, `# branch.head ${sessionState.branch}`, "1 .M fake", "? new.txt", ""].join("\0"))
         }
         if (args.includes("--numstat")) {
           return output("2\t1\tsample.txt\0")
         }
         assert.ok(args.includes("--symbolic-full-name"))
-        return output(`${OID}\nrefs/heads/feature/rail\n`)
+        return output(`${OID}\nrefs/heads/${sessionState.branch}\n`)
       },
     },
     command: {
       async register(spec: CommandSpec) {
         commands.push(spec)
         return { command: spec.name }
+      },
+      async run({ command }: { command: string }): Promise<CommandRunResult> {
+        commandRuns.push(command)
+        return {}
       },
     },
     ui: {
@@ -95,11 +115,15 @@ function createApi(openResult: UiOpenResult) {
       invalidate(event: string) {
         redraws.push(event)
       },
+      toast(message: string) {
+        toasts.push(message)
+      },
       resolve() {
         return {
           Box: (props: Omit<Tree, "type">): Tree => ({ type: "Box", ...props }),
           Text: (props: Omit<Tree, "type">): Tree => ({ type: "Text", ...props }),
           Button: (props: Omit<Tree, "type">): Tree => ({ type: "Button", ...props }),
+          Link: (props: Omit<Tree, "type">): Tree => ({ type: "Link", ...props }),
         }
       },
     },
@@ -128,6 +152,7 @@ export function harness(openResult: UiOpenResult = { isPlaced: true }) {
   return {
     api,
     hooks,
+    renderTree,
     async render(placement: "dock" | "inline") {
       return lines(await renderTree(placement))
     },
@@ -145,7 +170,7 @@ export function harness(openResult: UiOpenResult = { isPlaced: true }) {
 }
 
 function lines(tree: Tree): string[] {
-  if (tree.type === "Button" && tree.label) {
+  if ((tree.type === "Button" || tree.type === "Link") && tree.label) {
     return [tree.label]
   }
   return (tree.children ?? []).flatMap((child) => typeof child === "string" ? [child] : lines(child))
