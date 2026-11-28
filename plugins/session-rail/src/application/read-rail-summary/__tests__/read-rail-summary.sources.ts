@@ -19,6 +19,7 @@ function sources(overrides: Partial<SummarySources> = {}): SummarySources {
     contextBreakdown: async () => null,
     worktree: async () => WORKTREE,
     pullRequest: async () => ({ kind: "none" }),
+    subagents: async () => [],
     ...overrides,
   }
 }

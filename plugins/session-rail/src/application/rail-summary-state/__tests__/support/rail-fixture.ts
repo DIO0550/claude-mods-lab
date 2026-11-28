@@ -8,6 +8,7 @@ const sources: SummarySources = {
   contextBreakdown: async () => null,
   worktree: async () => ({ kind: "outside" }),
   pullRequest: async () => ({ kind: "none" }),
+  subagents: async () => [],
 }
 
 export const mainTurn = { kind: "turn-completed", origin: { kind: "main" } } as const

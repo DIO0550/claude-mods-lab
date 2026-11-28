@@ -1,17 +1,27 @@
 import type { Elements } from "claude-code"
 import type { ContextAction, ContextBreakdownSnapshot } from "../application/context-breakdown-state/context-breakdown-state.ts"
 import type { PullRequestSnapshot } from "../application/pull-request-state/pull-request-state.ts"
-import type { RailSnapshot } from "../application/rail-summary-state/rail-summary-state.ts"
+import type { RailSnapshot, RailTab } from "../application/rail-summary-state/rail-summary-state.ts"
 import { presentContextBreakdown } from "./context-breakdown-view/context-breakdown-view.ts"
 import { presentPullRequest } from "./pull-request-view/pull-request-view.ts"
 import { presentRail } from "./rail-view/rail-view.ts"
+import { renderSubagentTab, type SubagentTabControls } from "./subagent-tab/subagent-tab.ts"
 
 type TerminalElements = Pick<Elements["terminal"], "Box" | "Text" | "Button" | "Link">
 type TerminalNode = ReturnType<TerminalElements[keyof TerminalElements]>
 type ContextView = ReturnType<typeof presentContextBreakdown>
 type ContextControls = { snapshot: ContextBreakdownSnapshot; dispatch(action: ContextAction): void }
 type ChangesControls = { pullRequest: PullRequestSnapshot; openLocalDiff?: () => Promise<void> }
-type RailControls = { context: ContextControls; changes: ChangesControls }
+type PaneLayout = { placement: "dock" | "inline"; columns: number }
+type OverviewControls = { context?: ContextControls; changes?: ChangesControls }
+type RailControls = OverviewControls & {
+  tabs: { active: RailTab; select(tab: RailTab): void; subagents: SubagentTabControls }
+}
+
+const TABS = [
+  { tab: "overview", label: "概要" },
+  { tab: "subagents", label: "サブエージェント" },
+] as const
 
 const CATEGORY_COLORS = { used: "#78c98a", buffer: "#e0b45b", free: "#809099", deferred: "#a1a6a6" }
 
@@ -113,11 +123,11 @@ function renderChangesControls(
   return rows
 }
 
-export function renderRailPane(
+function renderOverview(
   ui: TerminalElements,
-  { placement, columns }: { placement: "dock" | "inline"; columns: number },
+  { placement, columns }: PaneLayout,
   snapshot: RailSnapshot,
-  controls?: RailControls,
+  controls?: OverviewControls,
 ) {
   const { Box, Text } = ui
   const [environment, context, changes] = presentRail(snapshot)
@@ -145,4 +155,20 @@ export function renderRailPane(
     section(context.label, view ? [view.overview] : context.detail, contextRows),
     section(changes.label, changes.detail, changesRows),
   ] })
+}
+
+export function renderRailPane(ui: TerminalElements, layout: PaneLayout, snapshot: RailSnapshot, controls?: RailControls) {
+  if (!controls) {
+    return renderOverview(ui, layout, snapshot)
+  }
+  const { Box, Button } = ui
+  const { tabs } = controls
+  const header = Box({ flexDirection: "row", gap: 1, children: TABS.map(({ tab, label }) => Button({
+    key: `session-rail-tab-${tab}`,
+    label: tabs.active === tab ? `● ${label}` : label,
+    plain: true,
+    onPress: () => tabs.select(tab),
+  })) })
+  const body = tabs.active === "subagents" ? renderSubagentTab(ui, tabs.subagents) : renderOverview(ui, layout, snapshot, controls)
+  return Box({ flexDirection: "column", children: [header, body] })
 }

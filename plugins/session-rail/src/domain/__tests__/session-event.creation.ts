@@ -2,6 +2,12 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { SessionEvent, TurnOrigin } from "../session-event.ts"
 
+test("サブエージェントのターン開始を完了とは別の事実として表す", () => {
+  assert.deepEqual(SessionEvent.turnStarted(TurnOrigin.fromAgentId("agent-a")), {
+    kind: "turn-started", origin: { kind: "subagent", agentId: "agent-a" },
+  })
+})
+
 test("エージェント ID がないターンはメインのターンになる", () => {
   assert.deepEqual(SessionEvent.turnCompleted(TurnOrigin.fromAgentId(undefined)), {
     kind: "turn-completed",

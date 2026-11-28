@@ -2,6 +2,7 @@ import type { ContextEstimate } from "../../domain/context-breakdown/context-bre
 import { ContextUsage, type ContextMeasurement } from "../../domain/context-usage/context-usage.ts"
 import type { PullRequest } from "../../domain/pull-request/pull-request.ts"
 import type { RailSummary, RepositoryIdentity, SessionScope } from "../../domain/session-summary.ts"
+import type { Subagent } from "../../domain/subagent/subagent.ts"
 import { WorktreeSummary } from "../../domain/worktree.ts"
 
 export type PullRequestTarget = { root: string; branch: string }
@@ -19,6 +20,7 @@ export type SummarySources = {
   contextBreakdown(): Promise<ContextEstimate | null>
   worktree(cwd: string): Promise<WorktreeSummary>
   pullRequest(target: PullRequestTarget): Promise<PullRequestObservation>
+  subagents(): Promise<readonly Subagent[]>
 }
 
 async function optional<T>(read: () => Promise<T>): Promise<T | null> {
