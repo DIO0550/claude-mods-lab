@@ -1,16 +1,30 @@
-import type { On } from "claude-code"
+import type { EngineInterface, On } from "claude-code"
+import { createRailSummaryState, type RailEvent } from "../src/application/rail-summary-state/rail-summary-state.ts"
+import { SessionEvent, TurnOrigin } from "../src/domain/session-event.ts"
+import { createSummarySources } from "../src/infrastructure/claude-code/summary-sources.ts"
+import { renderRailPane } from "../src/presentation/render-rail-pane.ts"
 
 const COMMAND = "rail"
 const PANE_ID = "claude-mods-lab-session-rail"
 const TITLE = "セッション"
 
-const SECTIONS = [
-  { label: "環境", detail: "~/work/example · main", compact: "main" },
-  { label: "コンテキスト", detail: "28% · 28.1万 / 100万", compact: "28%" },
-  { label: "変更", detail: "未コミット +18 / −4", compact: "+18 / −4" },
-] as const
+async function isRailPlaced($: EngineInterface): Promise<boolean> {
+  const panes = await $.ui.panes()
+  return panes.some((pane) => pane.id === PANE_ID && pane.isPlaced)
+}
 
 export function register(on: On): void {
+  const state = createRailSummaryState()
+
+  function dispatch($: EngineInterface, event: RailEvent): void {
+    // データの取得不可は各セクションで扱う。UI の切断で会話を止めない。
+    void state.dispatch(event, {
+      sources: createSummarySources($),
+      isPanePlaced: () => isRailPlaced($),
+      redraw: () => $.ui.invalidate("ui.render"),
+    }).catch(() => {})
+  }
+
   on("session.start", async ($, event, next) => {
     if (!event.isInteractive || event.surface !== "terminal") {
       return next(event)
@@ -30,9 +44,11 @@ export function register(on: On): void {
     const panes = await $.ui.panes()
     if (panes.some((pane) => pane.id === PANE_ID)) {
       await $.ui.close({ id: PANE_ID })
+      dispatch($, { kind: "pane-closed" })
       return {}
     }
 
+    const opening = state.beginOpening()
     const pane = await $.ui.open({
       id: PANE_ID,
       title: TITLE,
@@ -40,6 +56,8 @@ export function register(on: On): void {
       columns: 42,
       rows: 6,
     })
+    const placement = pane.isPlaced ? "placed" : "unplaced"
+    dispatch($, { kind: "pane-placement-finished", opening, placement })
     if (!pane.isPlaced) {
       return { text: `セッションペインはまだ表示されていません（${pane.reason}）。` }
     }
@@ -47,25 +65,31 @@ export function register(on: On): void {
     return {}
   })
 
+  on("ui.close", ($, event, next) => {
+    if (event.id === PANE_ID) {
+      dispatch($, { kind: "pane-closed" })
+    }
+    return next(event)
+  })
+
+  on("session.end", ($, event, next) => {
+    dispatch($, SessionEvent.sessionEnded())
+    return next(event)
+  })
+
+  on("turn.complete", async ($, event, next) => {
+    const result = await next(event)
+    const origin = TurnOrigin.fromAgentId(event.agentId)
+    dispatch($, SessionEvent.turnCompleted(origin))
+    return result
+  })
+
   on("ui.render", { component: "Pane" }, ($, event, next) => {
     if (event.requestId !== PANE_ID || event.surface !== "terminal") {
       return next(event)
     }
 
-    const { Box, Text } = $.ui.resolve(event)
-    const preview = Text({ dimColor: true, children: ["プレビュー · 固定データ"] })
-
-    if (event.props.placement !== "dock") {
-      const rows = SECTIONS.map(({ label, compact }) => Text({ children: [`${label}  ${compact}`] }))
-      return Box({ flexDirection: "column", children: [preview, ...rows] })
-    }
-
-    const sections = SECTIONS.map(({ label, detail }) =>
-      Box({
-        flexDirection: "column",
-        children: [Text({ bold: true, children: [label] }), Text({ children: [detail] })],
-      }),
-    )
-    return Box({ flexDirection: "column", gap: 1, children: [preview, ...sections] })
+    const placement = event.props.placement === "dock" ? "dock" : "inline"
+    return renderRailPane($.ui.resolve(event), placement, state.snapshot())
   })
 }

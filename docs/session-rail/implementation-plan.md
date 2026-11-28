@@ -20,9 +20,9 @@ Desktop 本体の変更、別セッションへの切り替え、埋め込みブ
 
 ## 2. 最初に実機で確かめる
 
-この段階の試作は `plugins/session-rail/` に置く。固定データの描画と開閉は `tests/session-rail.test.ts` で確認できる。以下は Claude Code 実機での確認手順。
+実装は `plugins/session-rail/` に置く。`node --test "plugins/**/__tests__/*.ts"` で開閉、実データの表示、Git の集計を確認できる。以下は Claude Code 実機での確認手順。
 
-型定義やモックだけでは、ペインの位置、フォーカス、組み込みコマンドの起動までは確定できない。まず、実データなしの最小 Mod をローカルで読み込む。
+型定義やモックだけでは、ペインの位置、フォーカス、組み込みコマンドの起動までは確定できない。まず、Mod をローカルで読み込み、開閉と配置から確かめる。
 
 ```bash
 claude --version
@@ -30,7 +30,7 @@ claude plugin validate ./plugins/session-rail
 claude --plugin-dir ./plugins/session-rail
 ```
 
-1. `session.start` で `/rail` を登録する。`$.ui.open` と対象 ID の `ui.render` だけで、環境・コンテキスト・変更の固定見出しを出す。
+1. `/rail` を入力し、環境・コンテキスト・変更の見出しと現在の作業先を確認する。
 2. fullscreen の広い端末、狭い端末、classic 表示で `e.props.placement` と `bodyColumns` を確認する。Mod 側で列数を決め打ちして配置しない。
 3. 再実行やユーザーの閉じる操作で状態が残らないこと、Tab と Enter で操作できて入力欄へ戻れることを確認する。作業中に開く動作は、コマンド登録の `immediate` も含めて試す。
 4. 同じ実機で `$.session.usage({ breakdown: "summary" })` の利用可否、`$.command.run` からの `/diff` 起動を個別に確認する。使えない場合の代替は第4節のとおり。
@@ -39,7 +39,7 @@ claude --plugin-dir ./plugins/session-rail
 
 ## 3. 設計とリポジトリ構成
 
-**起動と描画、データの取得、表示用データの組み立てを分ける。** `ui.render` は現在のスナップショットを描くだけにして、Git や `gh` を毎回起動しない。レイアウトを入れ替えても同じデータを使えるようにする。
+**セッションの状態と判断、取得の手順、外部 API との接続、表示を分ける。** `ui.render` は現在のスナップショットを描くだけにして、Git や `gh` を毎回起動しない。レイアウトを入れ替えても同じデータを使えるようにする。
 
 ```mermaid
 flowchart TD
@@ -71,18 +71,32 @@ stateDiagram-v2
 
 コンテキストの展開やタブの選択は、ペインの開閉とは別の表示状態。環境、コンテキスト、ローカル差分、PR は個別に準備中・取得済み・対象なし・取得不可を持つ。一つの取得に失敗しても、他のセクションは表示する。
 
-| 置き場所の案 | 役割 |
+| 置き場所 | 役割 |
 | --- | --- |
 | `plugins/session-rail/.claude-plugin/plugin.json` | Mod の名前と説明 |
 | `plugins/session-rail/hooks/hooks.json` | hooks module の入口を指定 |
-| `plugins/session-rail/hooks/register.ts` | コマンド登録、開閉、更新イベントの接続 |
-| `plugins/session-rail/src/rail.ts` | スナップショットと表示状態。Git や UI API に直接依存しないデータ整形 |
-| `plugins/session-rail/src/sources/` | セッション・Git・GitHub の読み取りを必要に応じて分割 |
-| `plugins/session-rail/src/ui/` | ペイン要素、コンパクト表示、コンテキストの内訳 |
-| `plugins/session-rail/tests/` | 変換ロジックと Mod のイベント／描画テスト |
-| `docs/session-rail/` | リポジトリに計画やモックを置く場合の候補 |
+| `plugins/session-rail/hooks/register.ts` | ホストのイベントを登録し、内部イベントに変換する入口 |
+| `plugins/session-rail/src/domain/` | セッションの事実を表す `SessionEvent`、コンテキスト使用量、worktree、ローカル差分の型と判断 |
+| `plugins/session-rail/src/application/` | `RailEvent` を受けて取得・クリアを判断し、`RailSnapshot` を更新する。取得元は `SummarySources` で受け取る |
+| `plugins/session-rail/src/infrastructure/claude-code/` | Claude Code のセッション API とコマンド実行を取得元につなぐ |
+| `plugins/session-rail/src/infrastructure/git/` | worktree を検出し、Git のコマンド出力をドメインの値に変換する |
+| `plugins/session-rail/src/presentation/` | 表示文言、行数、コンパクト表示と詳細表示の組み立て |
+| 対象の `.ts` に隣接する `__tests__/` | 各層の単体テスト、実 Git を使うテスト、Mod の結合テスト。`対象.カテゴリ.ts` で分け、`describe` は使わない |
+| `docs/session-rail/` | 実装計画と HTML の画面案 |
 
-空のフォルダや大きな土台は先に作らない。最小検証ではマニフェスト・フック登録・描画だけ置き、項目を追加するときに分割する。ローカルの検証は公式の `--plugin-dir` を使う。
+`domain` は外部 API と描画に依存しない。`application` は `domain` と自分が定義した取得口だけに依存し、Claude Code や Git を直接呼ばない。たとえば Git が返す detached HEAD はドメインではコミット ID として保持し、7 桁に短くするのは表示側だけで行う。`LocalChanges` は変更なし・未追跡のみ・追跡済みの変更を区別する。行数を数えられない状態は、テキスト行差分がない状態とは別に持つ。
+
+生成や分類の判断は、型と同名のコンパニオンオブジェクトに置く。Git アダプターが読み取った件数は `LocalChanges.fromCounts` に渡し、行差分の分類は `LineDiff.fromTotals` に委ねる。`ContextUsage.fromMeasurement` は未計測・取得不可・計測済みを区別する。ホストのフックは `TurnOrigin.fromAgentId` と `SessionEvent` のファクトリーで内部イベントを組み立てる。
+
+### イベントと更新
+
+| 内部イベント | 扱う層と更新ルール |
+| --- | --- |
+| メイン／サブエージェントのターン完了 | 発生元を持つ `SessionEvent`。メインのターンが終わったときだけ、実際に配置済みのペインを更新する |
+| セッション終了 | `SessionEvent`。取得中の結果を無効にして、前のスナップショットを消す |
+| ペインの配置結果・終了 | アプリケーションのイベント。現在の開く操作に対応する配置成功時だけ初回取得を始める。閉じたら取得中の結果も破棄する |
+
+ペイン配置待ちの操作と、データの取得待ちは別に追跡する。配置前にターン完了が届いても、その後の配置成功に伴う初回取得は取り消さない。
 
 ## 4. データと操作の契約
 
@@ -149,7 +163,7 @@ stateDiagram-v2
 | 作業ツリーの検証 | 別 worktree、Git 管理外、変更なし、未追跡ファイル、PR なし、認証なし、ブランチ変更後に遅い PR 応答が戻る場合 |
 | 実機 | macOS の通常ターミナルと tmux を最初の確認先とする。広い fullscreen、狭い幅、classic、フォーカス復帰、動作中の開閉を確認。使う devcontainer でも追試 |
 
-手始めは 01 だけ。固定データで「開く → 見る → 閉じて入力に戻る」が通れば、Git や PR を触らずに配置の見込みを判断できる。
+実機ではまず「開く → 見る → 閉じて入力に戻る」を確認し、続いて 02 の作業先・使用量・差分が正しく切り替わることを確かめる。
 
 ## 参照
 
