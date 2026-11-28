@@ -20,9 +20,9 @@ Desktop 本体の変更、別セッションへの切り替え、埋め込みブ
 
 ## 2. 最初に実機で確かめる
 
-この段階の試作は `plugins/session-rail/` に置く。固定データの描画と開閉は `tests/session-rail.test.ts` で確認できる。以下は Claude Code 実機での確認手順。
+実装は `plugins/session-rail/` に置く。`node --test tests/*.test.ts` で開閉、実データの表示、Git の集計を確認できる。以下は Claude Code 実機での確認手順。
 
-型定義やモックだけでは、ペインの位置、フォーカス、組み込みコマンドの起動までは確定できない。まず、実データなしの最小 Mod をローカルで読み込む。
+型定義やモックだけでは、ペインの位置、フォーカス、組み込みコマンドの起動までは確定できない。まず、Mod をローカルで読み込み、開閉と配置から確かめる。
 
 ```bash
 claude --version
@@ -30,7 +30,7 @@ claude plugin validate ./plugins/session-rail
 claude --plugin-dir ./plugins/session-rail
 ```
 
-1. `session.start` で `/rail` を登録する。`$.ui.open` と対象 ID の `ui.render` だけで、環境・コンテキスト・変更の固定見出しを出す。
+1. `/rail` を入力し、環境・コンテキスト・変更の見出しと現在の作業先を確認する。
 2. fullscreen の広い端末、狭い端末、classic 表示で `e.props.placement` と `bodyColumns` を確認する。Mod 側で列数を決め打ちして配置しない。
 3. 再実行やユーザーの閉じる操作で状態が残らないこと、Tab と Enter で操作できて入力欄へ戻れることを確認する。作業中に開く動作は、コマンド登録の `immediate` も含めて試す。
 4. 同じ実機で `$.session.usage({ breakdown: "summary" })` の利用可否、`$.command.run` からの `/diff` 起動を個別に確認する。使えない場合の代替は第4節のとおり。
@@ -76,10 +76,10 @@ stateDiagram-v2
 | `plugins/session-rail/.claude-plugin/plugin.json` | Mod の名前と説明 |
 | `plugins/session-rail/hooks/hooks.json` | hooks module の入口を指定 |
 | `plugins/session-rail/hooks/register.ts` | コマンド登録、開閉、更新イベントの接続 |
-| `plugins/session-rail/src/rail.ts` | スナップショットと表示状態。Git や UI API に直接依存しないデータ整形 |
-| `plugins/session-rail/src/sources/` | セッション・Git・GitHub の読み取りを必要に応じて分割 |
-| `plugins/session-rail/src/ui/` | ペイン要素、コンパクト表示、コンテキストの内訳 |
-| `plugins/session-rail/tests/` | 変換ロジックと Mod のイベント／描画テスト |
+| `plugins/session-rail/src/summary.ts` | セッション情報の取得と、表示用サマリーの組み立て |
+| `plugins/session-rail/src/git.ts` | 現在の worktree の検出、ブランチ、差分の集計 |
+| `plugins/session-rail/src/ui/` | コンテキスト内訳など、表示を分割する場合の候補 |
+| `tests/` | 実 Git と、スタブを使う Mod のイベント／描画テスト |
 | `docs/session-rail/` | リポジトリに計画やモックを置く場合の候補 |
 
 空のフォルダや大きな土台は先に作らない。最小検証ではマニフェスト・フック登録・描画だけ置き、項目を追加するときに分割する。ローカルの検証は公式の `--plugin-dir` を使う。
@@ -149,7 +149,7 @@ stateDiagram-v2
 | 作業ツリーの検証 | 別 worktree、Git 管理外、変更なし、未追跡ファイル、PR なし、認証なし、ブランチ変更後に遅い PR 応答が戻る場合 |
 | 実機 | macOS の通常ターミナルと tmux を最初の確認先とする。広い fullscreen、狭い幅、classic、フォーカス復帰、動作中の開閉を確認。使う devcontainer でも追試 |
 
-手始めは 01 だけ。固定データで「開く → 見る → 閉じて入力に戻る」が通れば、Git や PR を触らずに配置の見込みを判断できる。
+実機ではまず「開く → 見る → 閉じて入力に戻る」を確認し、続いて 02 の作業先・使用量・差分が正しく切り替わることを確かめる。
 
 ## 参照
 

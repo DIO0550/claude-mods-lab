@@ -1,16 +1,54 @@
-import type { On } from "claude-code"
+import type { EngineInterface, On } from "claude-code"
+import { presentRail, readRailSummary, readScope, sameScope, type RailSummary } from "../src/summary.ts"
 
 const COMMAND = "rail"
 const PANE_ID = "claude-mods-lab-session-rail"
 const TITLE = "セッション"
 
-const SECTIONS = [
-  { label: "環境", detail: "~/work/example · main", compact: "main" },
-  { label: "コンテキスト", detail: "28% · 28.1万 / 100万", compact: "28%" },
-  { label: "変更", detail: "未コミット +18 / −4", compact: "+18 / −4" },
-] as const
-
 export function register(on: On): void {
+  let summary: RailSummary | undefined
+  let revision = 0
+
+  function clearSummary(): void {
+    summary = undefined
+    revision += 1
+  }
+
+  async function refresh($: EngineInterface, onlyWhenPlaced: boolean): Promise<void> {
+    const request = ++revision
+    if (onlyWhenPlaced) {
+      const panes = await $.ui.panes()
+      if (revision !== request || !panes.some((pane) => pane.id === PANE_ID && pane.isPlaced)) {
+        return
+      }
+    }
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const nextSummary = await readRailSummary($)
+      if (request !== revision) {
+        return
+      }
+      const activeScope = await readScope($)
+      if (request !== revision) {
+        return
+      }
+      if (sameScope(nextSummary.scope, activeScope)) {
+        summary = nextSummary
+        $.ui.invalidate("ui.render")
+        return
+      }
+
+      // 作業先が変わったら前の値を消し、現在の作業先を一度読み直す。
+      summary = undefined
+      $.ui.invalidate("ui.render")
+    }
+  }
+
+  function refreshInBackground($: EngineInterface, onlyWhenPlaced: boolean): void {
+    // データの取得不可は各セクションで扱う。UI の切断で会話を止めない。
+    void refresh($, onlyWhenPlaced).catch(() => {})
+  }
+
   on("session.start", async ($, event, next) => {
     if (!event.isInteractive || event.surface !== "terminal") {
       return next(event)
@@ -30,9 +68,12 @@ export function register(on: On): void {
     const panes = await $.ui.panes()
     if (panes.some((pane) => pane.id === PANE_ID)) {
       await $.ui.close({ id: PANE_ID })
+      clearSummary()
       return {}
     }
 
+    clearSummary()
+    const opening = revision
     const pane = await $.ui.open({
       id: PANE_ID,
       title: TITLE,
@@ -44,7 +85,31 @@ export function register(on: On): void {
       return { text: `セッションペインはまだ表示されていません（${pane.reason}）。` }
     }
 
+    if (opening === revision) {
+      refreshInBackground($, false)
+    }
     return {}
+  })
+
+  on("ui.close", ($, event, next) => {
+    if (event.id === PANE_ID) {
+      clearSummary()
+    }
+    return next(event)
+  })
+
+  on("session.end", ($, event, next) => {
+    clearSummary()
+    $.ui.invalidate("ui.render")
+    return next(event)
+  })
+
+  on("turn.complete", async ($, event, next) => {
+    const result = await next(event)
+    if (event.agentId === undefined) {
+      refreshInBackground($, true)
+    }
+    return result
   })
 
   on("ui.render", { component: "Pane" }, ($, event, next) => {
@@ -53,19 +118,21 @@ export function register(on: On): void {
     }
 
     const { Box, Text } = $.ui.resolve(event)
-    const preview = Text({ dimColor: true, children: ["プレビュー · 固定データ"] })
+    const sections = presentRail(summary)
 
     if (event.props.placement !== "dock") {
-      const rows = SECTIONS.map(({ label, compact }) => Text({ children: [`${label}  ${compact}`] }))
-      return Box({ flexDirection: "column", children: [preview, ...rows] })
+      const rows = sections.map(({ label, compact }) =>
+        Text({ wrap: "truncate-middle", children: [`${label}  ${compact}`] }),
+      )
+      return Box({ flexDirection: "column", children: rows })
     }
 
-    const sections = SECTIONS.map(({ label, detail }) =>
+    const rows = sections.map(({ label, detail }) =>
       Box({
         flexDirection: "column",
-        children: [Text({ bold: true, children: [label] }), Text({ children: [detail] })],
+        children: [Text({ bold: true, children: [label] }), ...detail.map((line) => Text({ children: [line] }))],
       }),
     )
-    return Box({ flexDirection: "column", gap: 1, children: [preview, ...sections] })
+    return Box({ flexDirection: "column", gap: 1, children: rows })
   })
 }
