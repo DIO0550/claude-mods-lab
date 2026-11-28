@@ -75,16 +75,26 @@ stateDiagram-v2
 | --- | --- |
 | `plugins/session-rail/.claude-plugin/plugin.json` | Mod の名前と説明 |
 | `plugins/session-rail/hooks/hooks.json` | hooks module の入口を指定 |
-| `plugins/session-rail/hooks/register.ts` | コマンドとイベントを登録し、各層をつなぐ入口 |
-| `plugins/session-rail/src/domain/` | セッション、コンテキスト使用量、worktree の型と判断。未計測と 0% の区別もここで扱う |
-| `plugins/session-rail/src/application/` | セッションと worktree の取得を取りまとめ、スナップショットを更新する。取得元は `SummarySources` で受け取る |
+| `plugins/session-rail/hooks/register.ts` | ホストのイベントを登録し、内部イベントに変換する入口 |
+| `plugins/session-rail/src/domain/` | セッションの事実を表す `SessionEvent`、コンテキスト使用量、worktree、ローカル差分の型と判断 |
+| `plugins/session-rail/src/application/` | `RailEvent` を受けて取得・クリアを判断し、`RailSnapshot` を更新する。取得元は `SummarySources` で受け取る |
 | `plugins/session-rail/src/infrastructure/claude-code/` | Claude Code のセッション API とコマンド実行を取得元につなぐ |
 | `plugins/session-rail/src/infrastructure/git/` | worktree を検出し、Git のコマンド出力をドメインの値に変換する |
 | `plugins/session-rail/src/presentation/` | 表示文言、行数、コンパクト表示と詳細表示の組み立て |
 | 対象の `.ts` に隣接する `__tests__/` | 各層の単体テスト、実 Git を使うテスト、Mod の結合テスト。`対象.カテゴリ.ts` で分け、`describe` は使わない |
 | `docs/session-rail/` | 実装計画と HTML の画面案 |
 
-`domain` は外部 API と描画に依存しない。`application` は `domain` と自分が定義した取得口だけに依存し、Claude Code や Git を直接呼ばない。たとえば Git が返す detached HEAD はドメインではコミット ID として保持し、7 桁に短くするのは表示側だけで行う。
+`domain` は外部 API と描画に依存しない。`application` は `domain` と自分が定義した取得口だけに依存し、Claude Code や Git を直接呼ばない。たとえば Git が返す detached HEAD はドメインではコミット ID として保持し、7 桁に短くするのは表示側だけで行う。`LocalChanges` は変更なし・未追跡のみ・追跡済みの変更を区別する。行数を数えられない状態は、テキスト行差分がない状態とは別に持つ。
+
+### イベントと更新
+
+| 内部イベント | 扱う層と更新ルール |
+| --- | --- |
+| メイン／サブエージェントのターン完了 | 発生元を持つ `SessionEvent`。メインのターンが終わったときだけ、実際に配置済みのペインを更新する |
+| セッション終了 | `SessionEvent`。取得中の結果を無効にして、前のスナップショットを消す |
+| ペインの配置結果・終了 | アプリケーションのイベント。現在の開く操作に対応する配置成功時だけ初回取得を始める。閉じたら取得中の結果も破棄する |
+
+ペイン配置待ちの操作と、データの取得待ちは別に追跡する。配置前にターン完了が届いても、その後の配置成功に伴う初回取得は取り消さない。
 
 ## 4. データと操作の契約
 

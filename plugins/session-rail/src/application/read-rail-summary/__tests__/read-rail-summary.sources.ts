@@ -7,9 +7,7 @@ const WORKTREE = {
   kind: "ready",
   root: "/linked",
   checkout: { kind: "branch", name: "feature/rail" },
-  tracked: 0,
-  untracked: 1,
-  lines: { added: 0, deleted: 0, binary: 0 },
+  changes: { kind: "untracked-only", untracked: 1 },
 } as const
 
 function sources(overrides: Partial<SummarySources> = {}): SummarySources {

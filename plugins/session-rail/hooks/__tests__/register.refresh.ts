@@ -21,6 +21,29 @@ test("メインのターン終了時にだけ、開いているペインを更�
   assert.ok((await render("inline")).includes("コンテキスト  0%"))
 })
 
+test("配置待ちの間にターンが終わっても、配置後に最初の値を取得する", async () => {
+  const { api, fire, render } = harness()
+  const place = Promise.withResolvers<void>()
+  const opening = Promise.withResolvers<void>()
+  const open = api.ui.open
+  api.ui.open = async (args) => {
+    opening.resolve()
+    await place.promise
+    return open(args)
+  }
+
+  const command = fire("command.run", {})
+  await opening.promise
+  await fire("turn.complete", {})
+  await setImmediate()
+  assert.deepEqual(api.gitCalls, [])
+
+  place.resolve()
+  await command
+  await setImmediate()
+  assert.ok((await render("inline")).includes("コンテキスト  21%"))
+})
+
 test("閉じる前の遅い取得結果を、新しく開いたペインへ渡さない", async () => {
   const { api, fire, render } = harness()
   const delayed = Promise.withResolvers<SessionUsage>()

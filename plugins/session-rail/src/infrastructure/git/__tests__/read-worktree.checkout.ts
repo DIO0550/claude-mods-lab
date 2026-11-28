@@ -13,7 +13,10 @@ test("メインの作業ツリーではなく、開いている worktree のブ�
   writeFileSync(join(worktree, "note.txt"), "changed\n")
   assert.deepEqual(await readWorktree(runGit, worktree), {
     kind: "ready", root: worktree, checkout: { kind: "branch", name: "feature/rail" },
-    tracked: 1, untracked: 0, lines: { added: 1, deleted: 2, binary: 0 },
+    changes: {
+      kind: "tracked-changes", tracked: 1, untracked: 0,
+      diff: { kind: "text", added: 1, deleted: 2, binary: 0 },
+    },
   })
 })
 
@@ -24,7 +27,10 @@ test("detached HEAD でもコミットと行差分を表示する", async (t) =>
   writeFileSync(join(root, "note.txt"), "changed\n")
   assert.deepEqual(await readWorktree(runGit, root), {
     kind: "ready", root, checkout: { kind: "detached", oid },
-    tracked: 1, untracked: 0, lines: { added: 1, deleted: 2, binary: 0 },
+    changes: {
+      kind: "tracked-changes", tracked: 1, untracked: 0,
+      diff: { kind: "text", added: 1, deleted: 2, binary: 0 },
+    },
   })
 })
 
@@ -34,7 +40,7 @@ test("初回コミット前はファイル件数を出すが、HEAD との差分
   git(root, "add", "first.txt")
   assert.deepEqual(await readWorktree(runGit, root), {
     kind: "ready", root, checkout: { kind: "branch", name: "main" },
-    tracked: 1, untracked: 0, lines: null,
+    changes: { kind: "tracked-changes", tracked: 1, untracked: 0, diff: { kind: "unavailable" } },
   })
 })
 

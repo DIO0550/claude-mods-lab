@@ -1,13 +1,13 @@
 import type { Elements } from "claude-code"
-import type { RailSummary } from "../domain/session-summary.ts"
+import type { RailSnapshot } from "../application/rail-summary-state/rail-summary-state.ts"
 import { presentRail } from "./rail-view/rail-view.ts"
 
 export function renderRailPane(
   { Box, Text }: Pick<Elements["terminal"], "Box" | "Text">,
   placement: "dock" | "inline",
-  summary: RailSummary | undefined,
+  snapshot: RailSnapshot,
 ) {
-  const sections = presentRail(summary)
+  const sections = presentRail(snapshot)
 
   if (placement !== "dock") {
     const rows = sections.map(({ label, compact }) =>

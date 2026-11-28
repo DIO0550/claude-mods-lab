@@ -1,4 +1,5 @@
-import type { Checkout, LineChanges, WorktreeSummary } from "../../domain/worktree.ts"
+import { summarizeLocalChanges, type DiffTotals } from "../../domain/local-changes/local-changes.ts"
+import type { Checkout, WorktreeSummary } from "../../domain/worktree.ts"
 
 type GitOutput = {
   exitCode: number
@@ -82,7 +83,7 @@ function parseStatus(stdout: string): Status | null {
   return { checkout: { kind: "branch", name: branch }, oid: head, tracked, untracked }
 }
 
-function parseNumstat(stdout: string): LineChanges | null {
+function parseNumstat(stdout: string): DiffTotals | null {
   const records = nulRecords(stdout)
   if (!records) {
     return null
@@ -119,11 +120,8 @@ function succeeded(result: GitOutput): boolean {
   return result.exitCode === 0 && !result.isStdoutTruncated
 }
 
-async function readLineChanges(run: RunGit, cwd: string, status: Status): Promise<LineChanges | null> {
-  if (status.tracked === 0) {
-    return { added: 0, deleted: 0, binary: 0 }
-  }
-  if (status.oid === null) {
+async function readDiffTotals(run: RunGit, cwd: string, status: Status): Promise<DiffTotals | null> {
+  if (status.tracked === 0 || status.oid === null) {
     return null
   }
 
@@ -163,7 +161,7 @@ export async function readWorktree(run: RunGit, cwd: string): Promise<WorktreeSu
       return { kind: "unavailable" }
     }
 
-    const lines = await readLineChanges(run, root, status)
+    const totals = await readDiffTotals(run, root, status)
     // 同じコミットを指す別ブランチへの切り替えも検出する。
     if (!(await checkoutMatches(run, root, status))) {
       return { kind: "unavailable" }
@@ -173,9 +171,7 @@ export async function readWorktree(run: RunGit, cwd: string): Promise<WorktreeSu
       kind: "ready",
       root,
       checkout: status.checkout,
-      tracked: status.tracked,
-      untracked: status.untracked,
-      lines,
+      changes: summarizeLocalChanges(status, totals),
     }
   } catch {
     return { kind: "unavailable" }

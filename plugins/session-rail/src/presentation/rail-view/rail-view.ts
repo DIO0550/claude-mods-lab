@@ -1,3 +1,4 @@
+import type { RailSnapshot } from "../../application/rail-summary-state/rail-summary-state.ts"
 import type { ContextUsage } from "../../domain/context-usage/context-usage.ts"
 import type { RailSummary } from "../../domain/session-summary.ts"
 import type { Checkout, WorktreeSummary } from "../../domain/worktree.ts"
@@ -53,32 +54,34 @@ function presentChanges(worktree: WorktreeSummary): Section {
   if (worktree.kind === "unavailable") {
     return section("変更", "取得不可")
   }
-  const { tracked, untracked, lines } = worktree
-  if (tracked === 0 && untracked === 0) {
+  const { changes } = worktree
+  if (changes.kind === "clean") {
     return section("変更", "変更なし")
   }
-
-  const count = `未コミット ${tracked}件 · 未追跡 ${untracked}件`
-  if (tracked === 0) {
-    return section("変更", `未追跡 ${untracked}件`, count)
+  if (changes.kind === "untracked-only") {
+    return section("変更", `未追跡 ${changes.untracked}件`, `未コミット 0件 · 未追跡 ${changes.untracked}件`)
   }
-  if (!lines) {
+
+  const { tracked, untracked, diff } = changes
+  const count = `未コミット ${tracked}件 · 未追跡 ${untracked}件`
+  if (diff.kind === "unavailable") {
     return section("変更", count, count, "行数を取得できません")
   }
-
-  const { added, deleted, binary } = lines
-  const lineCount = `+${added} / −${deleted}`
-  if (added === 0 && deleted === 0) {
-    const withoutText = binary > 0 ? `バイナリ ${binary}件` : "テキストの行差分なし"
+  if (diff.kind === "no-text") {
+    const withoutText = diff.binary > 0 ? `バイナリ ${diff.binary}件` : "テキストの行差分なし"
     return section("変更", count, count, withoutText)
   }
+
+  const { added, deleted, binary } = diff
+  const lineCount = `+${added} / −${deleted}`
   const detail = binary > 0 ? `${lineCount} · バイナリ ${binary}件` : lineCount
   return section("変更", `${lineCount} · 未追跡 ${untracked}件`, count, detail)
 }
 
-export function presentRail(summary: RailSummary | undefined): readonly Section[] {
-  if (!summary) {
+export function presentRail(snapshot: RailSnapshot): readonly Section[] {
+  if (snapshot.kind === "pending") {
     return ["環境", "コンテキスト", "変更"].map((label) => section(label, "読み込み中"))
   }
+  const { summary } = snapshot
   return [presentEnvironment(summary), presentContext(summary.context), presentChanges(summary.worktree)]
 }

@@ -1,5 +1,6 @@
 import type { EngineInterface, On } from "claude-code"
-import { createRailSummaryState } from "../src/application/rail-summary-state/rail-summary-state.ts"
+import { createRailSummaryState, type RailEvent } from "../src/application/rail-summary-state/rail-summary-state.ts"
+import type { TurnOrigin } from "../src/domain/session-event.ts"
 import { createSummarySources } from "../src/infrastructure/claude-code/summary-sources.ts"
 import { renderRailPane } from "../src/presentation/render-rail-pane.ts"
 
@@ -15,13 +16,13 @@ async function isRailPlaced($: EngineInterface): Promise<boolean> {
 export function register(on: On): void {
   const state = createRailSummaryState()
 
-  function refreshInBackground($: EngineInterface, onlyWhenPlaced: boolean): void {
+  function dispatch($: EngineInterface, event: RailEvent): void {
     // データの取得不可は各セクションで扱う。UI の切断で会話を止めない。
-    void state.refresh(
-      createSummarySources($),
-      () => $.ui.invalidate("ui.render"),
-      onlyWhenPlaced ? () => isRailPlaced($) : undefined,
-    ).catch(() => {})
+    void state.dispatch(event, {
+      sources: createSummarySources($),
+      isPanePlaced: () => isRailPlaced($),
+      redraw: () => $.ui.invalidate("ui.render"),
+    }).catch(() => {})
   }
 
   on("session.start", async ($, event, next) => {
@@ -43,11 +44,11 @@ export function register(on: On): void {
     const panes = await $.ui.panes()
     if (panes.some((pane) => pane.id === PANE_ID)) {
       await $.ui.close({ id: PANE_ID })
-      state.clear()
+      dispatch($, { kind: "pane-closed" })
       return {}
     }
 
-    const opening = state.clear()
+    const opening = state.beginOpening()
     const pane = await $.ui.open({
       id: PANE_ID,
       title: TITLE,
@@ -55,34 +56,32 @@ export function register(on: On): void {
       columns: 42,
       rows: 6,
     })
+    const placement = pane.isPlaced ? "placed" : "unplaced"
+    dispatch($, { kind: "pane-placement-finished", opening, placement })
     if (!pane.isPlaced) {
       return { text: `セッションペインはまだ表示されていません（${pane.reason}）。` }
     }
 
-    if (state.isCurrent(opening)) {
-      refreshInBackground($, false)
-    }
     return {}
   })
 
   on("ui.close", ($, event, next) => {
     if (event.id === PANE_ID) {
-      state.clear()
+      dispatch($, { kind: "pane-closed" })
     }
     return next(event)
   })
 
   on("session.end", ($, event, next) => {
-    state.clear()
-    $.ui.invalidate("ui.render")
+    dispatch($, { kind: "session-ended" })
     return next(event)
   })
 
   on("turn.complete", async ($, event, next) => {
     const result = await next(event)
-    if (event.agentId === undefined) {
-      refreshInBackground($, true)
-    }
+    const { agentId } = event
+    const origin: TurnOrigin = agentId === undefined ? { kind: "main" } : { kind: "subagent", agentId }
+    dispatch($, { kind: "turn-completed", origin })
     return result
   })
 

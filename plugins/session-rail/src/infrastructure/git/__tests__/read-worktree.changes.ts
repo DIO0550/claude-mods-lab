@@ -9,7 +9,7 @@ test("変更がない Git リポジトリのブランチとルートを読む", 
   const root = initialize(t)
   assert.deepEqual(await readWorktree(runGit, root), {
     kind: "ready", root, checkout: { kind: "branch", name: "main" },
-    tracked: 0, untracked: 0, lines: { added: 0, deleted: 0, binary: 0 },
+    changes: { kind: "clean" },
   })
 })
 
@@ -27,7 +27,10 @@ test("ステージ済み・未ステージ・名前変更・バイナリ・未�
 
   assert.deepEqual(await readWorktree(runGit, subdir), {
     kind: "ready", root, checkout: { kind: "branch", name: "main" },
-    tracked: 3, untracked: 2, lines: { added: 2, deleted: 1, binary: 1 },
+    changes: {
+      kind: "tracked-changes", tracked: 3, untracked: 2,
+      diff: { kind: "text", added: 2, deleted: 1, binary: 1 },
+    },
   })
 })
 
@@ -43,6 +46,21 @@ test("行差分の出力が途中で切れても、途中までの行数を表�
   }
   assert.deepEqual(await readWorktree(limited, root), {
     kind: "ready", root, checkout: { kind: "branch", name: "main" },
-    tracked: 1, untracked: 0, lines: null,
+    changes: { kind: "tracked-changes", tracked: 1, untracked: 0, diff: { kind: "unavailable" } },
   })
+})
+
+test("未追跡ファイルだけなら行差分を取得せず、件数だけを返す", async (t) => {
+  const root = initialize(t)
+  writeFileSync(join(root, "new.txt"), "not in the line count\n")
+  const calls: Array<readonly string[]> = []
+  const recording: RunGit = async (args, cwd) => {
+    calls.push(args)
+    return runGit(args, cwd)
+  }
+  assert.deepEqual(await readWorktree(recording, root), {
+    kind: "ready", root, checkout: { kind: "branch", name: "main" },
+    changes: { kind: "untracked-only", untracked: 1 },
+  })
+  assert.ok(!calls.some((args) => args[0] === "diff"))
 })
