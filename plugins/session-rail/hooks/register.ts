@@ -1,6 +1,6 @@
 import type { EngineInterface, On } from "claude-code"
 import { createRailSummaryState, type RailEvent } from "../src/application/rail-summary-state/rail-summary-state.ts"
-import type { TurnOrigin } from "../src/domain/session-event.ts"
+import { SessionEvent, TurnOrigin } from "../src/domain/session-event.ts"
 import { createSummarySources } from "../src/infrastructure/claude-code/summary-sources.ts"
 import { renderRailPane } from "../src/presentation/render-rail-pane.ts"
 
@@ -73,15 +73,14 @@ export function register(on: On): void {
   })
 
   on("session.end", ($, event, next) => {
-    dispatch($, { kind: "session-ended" })
+    dispatch($, SessionEvent.sessionEnded())
     return next(event)
   })
 
   on("turn.complete", async ($, event, next) => {
     const result = await next(event)
-    const { agentId } = event
-    const origin: TurnOrigin = agentId === undefined ? { kind: "main" } : { kind: "subagent", agentId }
-    dispatch($, { kind: "turn-completed", origin })
+    const origin = TurnOrigin.fromAgentId(event.agentId)
+    dispatch($, SessionEvent.turnCompleted(origin))
     return result
   })
 

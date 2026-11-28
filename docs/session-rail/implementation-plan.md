@@ -86,6 +86,8 @@ stateDiagram-v2
 
 `domain` は外部 API と描画に依存しない。`application` は `domain` と自分が定義した取得口だけに依存し、Claude Code や Git を直接呼ばない。たとえば Git が返す detached HEAD はドメインではコミット ID として保持し、7 桁に短くするのは表示側だけで行う。`LocalChanges` は変更なし・未追跡のみ・追跡済みの変更を区別する。行数を数えられない状態は、テキスト行差分がない状態とは別に持つ。
 
+生成や分類の判断は、型と同名のコンパニオンオブジェクトに置く。Git アダプターが読み取った件数は `LocalChanges.fromCounts` に渡し、行差分の分類は `LineDiff.fromTotals` に委ねる。`ContextUsage.fromMeasurement` は未計測・取得不可・計測済みを区別する。ホストのフックは `TurnOrigin.fromAgentId` と `SessionEvent` のファクトリーで内部イベントを組み立てる。
+
 ### イベントと更新
 
 | 内部イベント | 扱う層と更新ルール |

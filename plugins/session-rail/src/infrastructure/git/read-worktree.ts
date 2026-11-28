@@ -1,5 +1,5 @@
-import { summarizeLocalChanges, type DiffTotals } from "../../domain/local-changes/local-changes.ts"
-import type { Checkout, WorktreeSummary } from "../../domain/worktree.ts"
+import { LocalChanges, type DiffTotals } from "../../domain/local-changes/local-changes.ts"
+import { Checkout, WorktreeSummary } from "../../domain/worktree.ts"
 
 type GitOutput = {
   exitCode: number
@@ -78,9 +78,9 @@ function parseStatus(stdout: string): Status | null {
     if (head === null) {
       return null
     }
-    return { checkout: { kind: "detached", oid: head }, oid: head, tracked, untracked }
+    return { checkout: Checkout.detached(head), oid: head, tracked, untracked }
   }
-  return { checkout: { kind: "branch", name: branch }, oid: head, tracked, untracked }
+  return { checkout: Checkout.branch(branch), oid: head, tracked, untracked }
 }
 
 function parseNumstat(stdout: string): DiffTotals | null {
@@ -148,32 +148,28 @@ export async function readWorktree(run: RunGit, cwd: string): Promise<WorktreeSu
   try {
     const rootResult = await run(["rev-parse", "--show-toplevel"], cwd)
     if (rootResult.exitCode !== 0 && /not a git repository|must be run in a work tree/.test(rootResult.stderr)) {
-      return { kind: "outside" }
+      return WorktreeSummary.outside()
     }
     const root = rootResult.stdout.replace(/\r?\n$/, "")
     if (!succeeded(rootResult) || !root) {
-      return { kind: "unavailable" }
+      return WorktreeSummary.unavailable()
     }
 
     const statusResult = await run(["status", "--porcelain=v2", "--branch", "--no-ahead-behind", "--untracked-files=all", "-z"], root)
     const status = succeeded(statusResult) ? parseStatus(statusResult.stdout) : null
     if (!status) {
-      return { kind: "unavailable" }
+      return WorktreeSummary.unavailable()
     }
 
     const totals = await readDiffTotals(run, root, status)
     // 同じコミットを指す別ブランチへの切り替えも検出する。
     if (!(await checkoutMatches(run, root, status))) {
-      return { kind: "unavailable" }
+      return WorktreeSummary.unavailable()
     }
 
-    return {
-      kind: "ready",
-      root,
-      checkout: status.checkout,
-      changes: summarizeLocalChanges(status, totals),
-    }
+    const changes = LocalChanges.fromCounts(status, totals)
+    return WorktreeSummary.ready(root, status.checkout, changes)
   } catch {
-    return { kind: "unavailable" }
+    return WorktreeSummary.unavailable()
   }
 }

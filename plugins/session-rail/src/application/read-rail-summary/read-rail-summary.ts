@@ -1,6 +1,6 @@
-import { summarizeContext, type ContextMeasurement } from "../../domain/context-usage/context-usage.ts"
+import { ContextUsage, type ContextMeasurement } from "../../domain/context-usage/context-usage.ts"
 import type { RailSummary, RepositoryIdentity, SessionScope } from "../../domain/session-summary.ts"
-import type { WorktreeSummary } from "../../domain/worktree.ts"
+import { WorktreeSummary } from "../../domain/worktree.ts"
 
 export type SummarySources = {
   sessionId(): Promise<string | null>
@@ -37,7 +37,7 @@ export async function readRailSummary(sources: SummarySources): Promise<RailSumm
   return {
     scope,
     repository,
-    worktree: worktree ?? { kind: "unavailable" },
-    context: summarizeContext(measurement),
+    worktree: worktree ?? WorktreeSummary.unavailable(),
+    context: ContextUsage.fromMeasurement(measurement),
   }
 }

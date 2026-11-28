@@ -1,5 +1,5 @@
 import type { SessionEvent } from "../../domain/session-event.ts"
-import { sameScope, type RailSummary } from "../../domain/session-summary.ts"
+import { SessionScope, type RailSummary } from "../../domain/session-summary.ts"
 import { readRailSummary, readScope, type SummarySources } from "../read-rail-summary/read-rail-summary.ts"
 
 export type RailSnapshot =
@@ -58,7 +58,7 @@ export function createRailSummaryState() {
       if (refreshing !== request) {
         return
       }
-      if (sameScope(nextSummary.scope, activeScope)) {
+      if (SessionScope.equals(nextSummary.scope, activeScope)) {
         snapshot = { kind: "ready", summary: nextSummary }
         ports.redraw()
         return
