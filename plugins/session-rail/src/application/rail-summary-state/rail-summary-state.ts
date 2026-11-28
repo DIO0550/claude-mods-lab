@@ -1,5 +1,6 @@
 import type { SessionEvent } from "../../domain/session-event.ts"
 import { SessionScope, type RailSummary } from "../../domain/session-summary.ts"
+import { createContextBreakdownState, type ContextAction } from "../context-breakdown-state/context-breakdown-state.ts"
 import { readRailSummary, readScope, type SummarySources } from "../read-rail-summary/read-rail-summary.ts"
 
 export type RailSnapshot =
@@ -11,6 +12,7 @@ type PaneOpening = { readonly kind: "pane-opening" }
 type PaneEvent =
   | { kind: "pane-placement-finished"; opening: PaneOpening; placement: "placed" | "unplaced" }
   | { kind: "pane-closed" }
+  | { kind: "context-control"; pane: PaneOpening; scope: SessionScope; action: ContextAction }
 
 export type RailEvent = SessionEvent | PaneEvent
 
@@ -22,19 +24,24 @@ type RailPorts = {
 
 export function createRailSummaryState() {
   let snapshot: RailSnapshot = { kind: "pending" }
+  const context = createContextBreakdownState()
   // 配置と取得は別々に完了する。ターン終了で配置待ちの操作を取り消さない。
+  let pane: PaneOpening | undefined
   let paneOpening: PaneOpening | undefined
   let refreshing: symbol | undefined
 
   function clear(): void {
     snapshot = { kind: "pending" }
+    pane = undefined
     paneOpening = undefined
     refreshing = undefined
+    context.collapse()
   }
 
   function beginOpening(): PaneOpening {
     clear()
     const opening = { kind: "pane-opening" } as const
+    pane = opening
     paneOpening = opening
     return opening
   }
@@ -59,13 +66,20 @@ export function createRailSummaryState() {
         return
       }
       if (SessionScope.equals(nextSummary.scope, activeScope)) {
+        if (snapshot.kind === "ready" && !SessionScope.equals(snapshot.summary.scope, nextSummary.scope)) {
+          context.collapse()
+        }
         snapshot = { kind: "ready", summary: nextSummary }
+        if (context.snapshot().kind !== "collapsed") {
+          return context.refresh(nextSummary.scope, ports)
+        }
         ports.redraw()
         return
       }
 
       // 作業先が変わったら前の値を消し、現在の作業先を一度読み直す。
       snapshot = { kind: "pending" }
+      context.collapse()
       ports.redraw()
     }
   }
@@ -84,6 +98,11 @@ export function createRailSummaryState() {
       case "pane-closed":
         clear()
         return
+      case "context-control":
+        if (event.pane !== pane || snapshot.kind !== "ready" || !SessionScope.equals(event.scope, snapshot.summary.scope)) {
+          return
+        }
+        return context.dispatch(event.action, event.scope, ports)
       case "session-ended":
         clear()
         ports.redraw()
@@ -96,5 +115,5 @@ export function createRailSummaryState() {
     }
   }
 
-  return { beginOpening, dispatch, snapshot: () => snapshot }
+  return { beginOpening, dispatch, snapshot: () => snapshot, pane: () => pane, context: context.snapshot }
 }

@@ -16,6 +16,7 @@ function sources(overrides: Partial<SummarySources> = {}): SummarySources {
     workingDirectory: async () => CWD,
     repository: async () => ({ name: "owner/repo", root: "/main" }),
     context: async () => ({ tokens: 30, window: 100 }),
+    contextBreakdown: async () => null,
     worktree: async () => WORKTREE,
     ...overrides,
   }

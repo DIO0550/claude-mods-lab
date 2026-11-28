@@ -8,22 +8,24 @@ const COMMAND = "rail"
 const PANE_ID = "claude-mods-lab-session-rail"
 const TITLE = "セッション"
 
+type RailState = ReturnType<typeof createRailSummaryState>
+
 async function isRailPlaced($: EngineInterface): Promise<boolean> {
   const panes = await $.ui.panes()
   return panes.some((pane) => pane.id === PANE_ID && pane.isPlaced)
 }
 
+function dispatch($: EngineInterface, state: RailState, event: RailEvent): void {
+  // データの取得不可は各セクションで扱う。UI の切断で会話を止めない。
+  void state.dispatch(event, {
+    sources: createSummarySources($),
+    isPanePlaced: () => isRailPlaced($),
+    redraw: () => $.ui.invalidate("ui.render"),
+  }).catch(() => {})
+}
+
 export function register(on: On): void {
   const state = createRailSummaryState()
-
-  function dispatch($: EngineInterface, event: RailEvent): void {
-    // データの取得不可は各セクションで扱う。UI の切断で会話を止めない。
-    void state.dispatch(event, {
-      sources: createSummarySources($),
-      isPanePlaced: () => isRailPlaced($),
-      redraw: () => $.ui.invalidate("ui.render"),
-    }).catch(() => {})
-  }
 
   on("session.start", async ($, event, next) => {
     if (!event.isInteractive || event.surface !== "terminal") {
@@ -44,7 +46,7 @@ export function register(on: On): void {
     const panes = await $.ui.panes()
     if (panes.some((pane) => pane.id === PANE_ID)) {
       await $.ui.close({ id: PANE_ID })
-      dispatch($, { kind: "pane-closed" })
+      dispatch($, state, { kind: "pane-closed" })
       return {}
     }
 
@@ -57,7 +59,7 @@ export function register(on: On): void {
       rows: 6,
     })
     const placement = pane.isPlaced ? "placed" : "unplaced"
-    dispatch($, { kind: "pane-placement-finished", opening, placement })
+    dispatch($, state, { kind: "pane-placement-finished", opening, placement })
     if (!pane.isPlaced) {
       return { text: `セッションペインはまだ表示されていません（${pane.reason}）。` }
     }
@@ -67,20 +69,20 @@ export function register(on: On): void {
 
   on("ui.close", ($, event, next) => {
     if (event.id === PANE_ID) {
-      dispatch($, { kind: "pane-closed" })
+      dispatch($, state, { kind: "pane-closed" })
     }
     return next(event)
   })
 
   on("session.end", ($, event, next) => {
-    dispatch($, SessionEvent.sessionEnded())
+    dispatch($, state, SessionEvent.sessionEnded())
     return next(event)
   })
 
   on("turn.complete", async ($, event, next) => {
     const result = await next(event)
     const origin = TurnOrigin.fromAgentId(event.agentId)
-    dispatch($, SessionEvent.turnCompleted(origin))
+    dispatch($, state, SessionEvent.turnCompleted(origin))
     return result
   })
 
@@ -90,6 +92,17 @@ export function register(on: On): void {
     }
 
     const placement = event.props.placement === "dock" ? "dock" : "inline"
-    return renderRailPane($.ui.resolve(event), placement, state.snapshot())
+    const layout = { placement, columns: event.props.bodyColumns } as const
+    const snapshot = state.snapshot()
+    const pane = state.pane()
+    const ui = $.ui.resolve(event)
+    if (!pane || snapshot.kind !== "ready") {
+      return renderRailPane(ui, layout, snapshot)
+    }
+    const { scope } = snapshot.summary
+    return renderRailPane(ui, layout, snapshot, {
+      snapshot: state.context(),
+      dispatch: (action) => dispatch($, state, { kind: "context-control", pane, scope, action }),
+    })
   })
 }

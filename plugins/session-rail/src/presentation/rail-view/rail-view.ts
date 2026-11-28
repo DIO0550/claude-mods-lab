@@ -9,7 +9,7 @@ function shortPath(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
 }
 
-function oneLine(value: string): string {
+export function oneLine(value: string): string {
   return value.replace(/[\u0000-\u001f\u007f-\u009f]/g, "�")
 }
 
@@ -78,9 +78,9 @@ function presentChanges(worktree: WorktreeSummary): Section {
   return section("変更", `${lineCount} · 未追跡 ${untracked}件`, count, detail)
 }
 
-export function presentRail(snapshot: RailSnapshot): readonly Section[] {
+export function presentRail(snapshot: RailSnapshot): readonly [Section, Section, Section] {
   if (snapshot.kind === "pending") {
-    return ["環境", "コンテキスト", "変更"].map((label) => section(label, "読み込み中"))
+    return [section("環境", "読み込み中"), section("コンテキスト", "読み込み中"), section("変更", "読み込み中")]
   }
   const { summary } = snapshot
   return [presentEnvironment(summary), presentContext(summary.context), presentChanges(summary.worktree)]

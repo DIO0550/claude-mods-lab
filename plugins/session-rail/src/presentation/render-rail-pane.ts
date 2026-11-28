@@ -1,26 +1,107 @@
 import type { Elements } from "claude-code"
+import type { ContextAction, ContextBreakdownSnapshot } from "../application/context-breakdown-state/context-breakdown-state.ts"
 import type { RailSnapshot } from "../application/rail-summary-state/rail-summary-state.ts"
+import { presentContextBreakdown } from "./context-breakdown-view/context-breakdown-view.ts"
 import { presentRail } from "./rail-view/rail-view.ts"
 
+type TerminalElements = Pick<Elements["terminal"], "Box" | "Text" | "Button">
+type TerminalNode = ReturnType<TerminalElements[keyof TerminalElements]>
+type ContextView = ReturnType<typeof presentContextBreakdown>
+type ContextControls = { snapshot: ContextBreakdownSnapshot; dispatch(action: ContextAction): void }
+
+const CATEGORY_COLORS = { used: "#78c98a", buffer: "#e0b45b", free: "#809099", deferred: "#a1a6a6" }
+
+function renderContextDetails(
+  { Box, Text, Button }: TerminalElements,
+  view: ContextView,
+  dispatch: ContextControls["dispatch"],
+): TerminalNode[] {
+  const rows: TerminalNode[] = []
+  if (view.bar.length > 0) {
+    rows.push(Box({ flexDirection: "row", children: view.bar.map(({ kind, cells }) =>
+      Text({ color: CATEGORY_COLORS[kind], children: ["█".repeat(cells)] }),
+    ) }))
+  }
+  for (const { kind, text } of view.categories) {
+    rows.push(Text({ color: CATEGORY_COLORS[kind], wrap: "truncate-middle", children: [text] }))
+  }
+  if (view.deferred.length > 0) {
+    rows.push(Text({ weight: "bold", children: ["遅延読み込み（使用量に含めない）"] }))
+    for (const text of view.deferred) {
+      rows.push(Text({ color: CATEGORY_COLORS.deferred, wrap: "truncate-middle", children: [text] }))
+    }
+  }
+  for (const group of view.groups) {
+    const key = `session-rail-context-${group.kind}`
+    rows.push(Button({ key, label: group.label, plain: true, onPress: () => dispatch({ kind: "toggle-group", group: group.kind }) }))
+    for (const text of group.lines) {
+      rows.push(Text({ wrap: "truncate-middle", children: [text] }))
+    }
+    if (group.range) {
+      rows.push(Text({ dimColor: true, children: [group.range] }))
+    }
+    if (group.hasPrevious) {
+      rows.push(Button({ key: `${key}-prev`, label: "‹ 前の項目", plain: true, onPress: () => dispatch({ kind: "page-group", group: group.kind, direction: -1 }) }))
+    }
+    if (group.hasNext) {
+      rows.push(Button({ key: `${key}-next`, label: "次の項目 ›", plain: true, onPress: () => dispatch({ kind: "page-group", group: group.kind, direction: 1 }) }))
+    }
+  }
+  return rows
+}
+
+function renderContextControls(ui: TerminalElements, controls: ContextControls | undefined, view: ContextView | null): TerminalNode[] {
+  if (!controls) {
+    return []
+  }
+  const { Button, Text } = ui
+  const { snapshot, dispatch } = controls
+  const rows: TerminalNode[] = [Button({
+    key: "session-rail-context-toggle",
+    label: snapshot.kind === "collapsed" ? "▸ 内訳を表示" : "▾ 内訳を閉じる",
+    plain: true,
+    onPress: () => dispatch({ kind: "toggle" }),
+  })]
+  if (snapshot.kind === "loading") {
+    rows.push(Text({ dimColor: true, children: ["内訳を取得中"] }))
+  }
+  if (snapshot.kind === "unavailable") {
+    rows.push(Text({ children: ["内訳を取得できません · /context で確認"] }))
+  }
+  if (view) {
+    rows.push(...renderContextDetails(ui, view, dispatch))
+  }
+  return rows
+}
+
 export function renderRailPane(
-  { Box, Text }: Pick<Elements["terminal"], "Box" | "Text">,
-  placement: "dock" | "inline",
+  ui: TerminalElements,
+  { placement, columns }: { placement: "dock" | "inline"; columns: number },
   snapshot: RailSnapshot,
+  controls?: ContextControls,
 ) {
-  const sections = presentRail(snapshot)
+  const { Box, Text } = ui
+  const [environment, context, changes] = presentRail(snapshot)
+  const view = controls?.snapshot.kind === "ready" ? presentContextBreakdown(controls.snapshot, columns) : null
+  const contextRows = renderContextControls(ui, controls, view)
 
   if (placement !== "dock") {
+    const sections = [environment, { ...context, compact: view?.overview ?? context.compact }, changes]
     const rows = sections.map(({ label, compact }) =>
       Text({ wrap: "truncate-middle", children: [`${label}  ${compact}`] }),
     )
-    return Box({ flexDirection: "column", children: rows })
+    return Box({ flexDirection: "column", children: [...rows, ...contextRows] })
   }
 
-  const rows = sections.map(({ label, detail }) =>
-    Box({
+  function section(label: string, detail: readonly string[], extra: readonly TerminalNode[] = []) {
+    return Box({
       flexDirection: "column",
-      children: [Text({ bold: true, children: [label] }), ...detail.map((line) => Text({ children: [line] }))],
-    }),
-  )
-  return Box({ flexDirection: "column", gap: 1, children: rows })
+      children: [Text({ bold: true, children: [label] }), ...detail.map((line) => Text({ children: [line] })), ...extra],
+    })
+  }
+  return Box({ flexDirection: "column", gap: 1, children: [
+    section(environment.label, environment.detail),
+    section(context.label, view ? [view.overview] : context.detail, contextRows),
+    section(changes.label, changes.detail),
+  ] })
 }

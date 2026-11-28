@@ -1,3 +1,4 @@
+import type { ContextEstimate } from "../../domain/context-breakdown/context-breakdown.ts"
 import { ContextUsage, type ContextMeasurement } from "../../domain/context-usage/context-usage.ts"
 import type { RailSummary, RepositoryIdentity, SessionScope } from "../../domain/session-summary.ts"
 import { WorktreeSummary } from "../../domain/worktree.ts"
@@ -7,6 +8,7 @@ export type SummarySources = {
   workingDirectory(): Promise<string | null>
   repository(): Promise<RepositoryIdentity | null>
   context(): Promise<ContextMeasurement | null>
+  contextBreakdown(): Promise<ContextEstimate | null>
   worktree(cwd: string): Promise<WorktreeSummary>
 }
 
@@ -18,7 +20,7 @@ async function optional<T>(read: () => Promise<T>): Promise<T | null> {
   }
 }
 
-export async function readScope(sources: SummarySources): Promise<SessionScope> {
+export async function readScope(sources: Pick<SummarySources, "sessionId" | "workingDirectory">): Promise<SessionScope> {
   const [id, cwd] = await Promise.all([
     optional(() => sources.sessionId()),
     optional(() => sources.workingDirectory()),
