@@ -16,6 +16,7 @@ test("右ペインは読み込み後に現在のセッションと worktree を�
     `worktree ${ROOT}`,
     "コンテキスト",
     "21% · 42,000 / 200,000 tokens",
+    "▸ 内訳を表示",
     "変更",
     "未コミット 1件 · 未追跡 1件",
     "+2 / −1",
@@ -36,6 +37,7 @@ test("入力欄上では 3 セクションを要約する", async () => {
     "環境  project · feature/rail",
     "コンテキスト  21%",
     "変更  +2 / −1 · 未追跡 1件",
+    "▸ 内訳を表示",
   ])
 })
 
@@ -54,7 +56,7 @@ test("未計測と取得不可を分け、Git が起動できなくても他の�
   await fire("command.run", {})
   await setImmediate()
   assert.deepEqual(await render("dock"), [
-    "環境", CWD, "Git 情報を取得できません", "コンテキスト", "未計測", "変更", "取得不可",
+    "環境", CWD, "Git 情報を取得できません", "コンテキスト", "未計測", "▸ 内訳を表示", "変更", "取得不可",
   ])
 })
 
@@ -64,6 +66,6 @@ test("コンテキストを取得できない場合も、Git 情報は表示す�
   await fire("command.run", {})
   await setImmediate()
   assert.deepEqual(await render("inline"), [
-    "環境  project · feature/rail", "コンテキスト  取得不可", "変更  +2 / −1 · 未追跡 1件",
+    "環境  project · feature/rail", "コンテキスト  取得不可", "変更  +2 / −1 · 未追跡 1件", "▸ 内訳を表示",
   ])
 })

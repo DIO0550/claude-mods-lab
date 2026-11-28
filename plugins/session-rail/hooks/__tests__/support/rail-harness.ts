@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import type { CommandSpec, On, PaneOpenArgs, SessionUsage, UiOpenResult } from "claude-code"
+import type { CommandSpec, On, PaneOpenArgs, SessionContextBreakdown, SessionUsage, SessionUsageArgs, UiOpenResult } from "claude-code"
 import { register } from "../../register.ts"
 
 export const PANE_ID = "claude-mods-lab-session-rail"
@@ -8,8 +8,11 @@ export const CWD = "/workspace/rail-worktree/src"
 export const ROOT = "/workspace/rail-worktree"
 
 type Tree = {
-  type: "Box" | "Text"
+  type: "Box" | "Text" | "Button"
   children?: readonly (Tree | string)[]
+  key?: string
+  label?: string
+  onPress?: () => void
 }
 
 type Hook = (
@@ -25,7 +28,13 @@ function createApi(openResult: UiOpenResult) {
   const closes: string[] = []
   const redraws: string[] = []
   const gitCalls: Array<{ args: readonly string[]; cwd?: string }> = []
-  const sessionState = { id: "session-a", cwd: CWD, usage: { tokens: 42_000, window: 200_000, percent: 21 } }
+  const usageCalls: (SessionUsageArgs | undefined)[] = []
+  const sessionState = {
+    id: "session-a",
+    cwd: CWD,
+    usage: { tokens: 42_000, window: 200_000, percent: 21 },
+    breakdown: undefined as SessionContextBreakdown | undefined,
+  }
   const output = (stdout: string) => ({ stdout, stderr: "", exitCode: 0, isStdoutTruncated: false })
 
   return {
@@ -35,13 +44,16 @@ function createApi(openResult: UiOpenResult) {
     closes,
     redraws,
     gitCalls,
+    usageCalls,
     sessionState,
     session: {
       async id() { return sessionState.id },
       async cwd() { return sessionState.cwd },
       async repo() { return { name: null, root: "/workspace/project" } },
-      async usage(): Promise<SessionUsage> {
-        return { startedAt: 0, rateLimits: [], context: sessionState.usage }
+      async usage(args?: SessionUsageArgs): Promise<SessionUsage> {
+        usageCalls.push(args)
+        const context = args?.breakdown ? { ...sessionState.usage, breakdown: sessionState.breakdown } : sessionState.usage
+        return { startedAt: 0, rateLimits: [], context }
       },
     },
     process: {
@@ -87,6 +99,7 @@ function createApi(openResult: UiOpenResult) {
         return {
           Box: (props: Omit<Tree, "type">): Tree => ({ type: "Box", ...props }),
           Text: (props: Omit<Tree, "type">): Tree => ({ type: "Text", ...props }),
+          Button: (props: Omit<Tree, "type">): Tree => ({ type: "Button", ...props }),
         }
       },
     },
@@ -106,13 +119,22 @@ export function harness(openResult: UiOpenResult = { isPlaced: true }) {
   }
   register(on as unknown as On)
 
+  async function renderTree(placement: "dock" | "inline"): Promise<Tree> {
+    const hook = hooks.get("ui.render")
+    assert.ok(hook)
+    return await hook.handle(api, paneRender(placement), () => undefined) as Tree
+  }
+
   return {
     api,
     hooks,
     async render(placement: "dock" | "inline") {
-      const hook = hooks.get("ui.render")
-      assert.ok(hook)
-      return lines(await hook.handle(api, paneRender(placement), () => undefined) as Tree)
+      return lines(await renderTree(placement))
+    },
+    async buttonPress(key: string, placement: "dock" | "inline" = "dock") {
+      const button = findButton(await renderTree(placement), key)
+      assert.ok(button?.onPress, `missing button ${key}`)
+      return button.onPress
     },
     async fire(event: string, input: Record<string, unknown>) {
       const hook = hooks.get(event)
@@ -123,9 +145,27 @@ export function harness(openResult: UiOpenResult = { isPlaced: true }) {
 }
 
 function lines(tree: Tree): string[] {
+  if (tree.type === "Button" && tree.label) {
+    return [tree.label]
+  }
   return (tree.children ?? []).flatMap((child) => typeof child === "string" ? [child] : lines(child))
 }
 
+function findButton(tree: Tree, key: string): Tree | undefined {
+  if (tree.type === "Button" && tree.key === key) {
+    return tree
+  }
+  for (const child of tree.children ?? []) {
+    if (typeof child === "string") {
+      continue
+    }
+    const button = findButton(child, key)
+    if (button) {
+      return button
+    }
+  }
+}
+
 export function paneRender(placement: "dock" | "inline") {
-  return { requestId: PANE_ID, surface: "terminal", props: { placement } }
+  return { requestId: PANE_ID, surface: "terminal", props: { placement, bodyColumns: 42 } }
 }

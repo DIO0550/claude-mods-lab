@@ -5,6 +5,7 @@ const sources: SummarySources = {
   workingDirectory: async () => "/project",
   repository: async () => null,
   context: async () => ({ tokens: 1, window: 100 }),
+  contextBreakdown: async () => null,
   worktree: async () => ({ kind: "outside" }),
 }
 
