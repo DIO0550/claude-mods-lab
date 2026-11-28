@@ -1,3 +1,5 @@
+import type { Checkout, LineChanges, WorktreeSummary } from "../../domain/worktree.ts"
+
 type GitOutput = {
   exitCode: number
   stdout: string
@@ -8,29 +10,11 @@ type GitOutput = {
 export type RunGit = (args: readonly string[], cwd: string) => Promise<GitOutput>
 
 type Status = {
-  branch: string
+  checkout: Checkout
   oid: string | null
   tracked: number
   untracked: number
 }
-
-type LineChanges = {
-  added: number
-  deleted: number
-  binary: number
-}
-
-export type GitSummary =
-  | { kind: "outside" }
-  | { kind: "unavailable" }
-  | {
-      kind: "ready"
-      root: string
-      branch: string
-      tracked: number
-      untracked: number
-      lines: LineChanges | null
-    }
 
 function nulRecords(stdout: string): string[] | null {
   if (stdout === "") {
@@ -88,7 +72,14 @@ function parseStatus(stdout: string): Status | null {
   if (!branch || !/^(?:\(initial\)|[0-9a-f]{40}|[0-9a-f]{64})$/.test(oid)) {
     return null
   }
-  return { branch, oid: oid === "(initial)" ? null : oid, tracked, untracked }
+  const head = oid === "(initial)" ? null : oid
+  if (branch === "(detached)") {
+    if (head === null) {
+      return null
+    }
+    return { checkout: { kind: "detached", oid: head }, oid: head, tracked, untracked }
+  }
+  return { checkout: { kind: "branch", name: branch }, oid: head, tracked, untracked }
 }
 
 function parseNumstat(stdout: string): LineChanges | null {
@@ -149,12 +140,13 @@ async function checkoutMatches(run: RunGit, cwd: string, status: Status): Promis
     return true
   }
   const revision = await run(["rev-parse", "HEAD", "--symbolic-full-name", "HEAD"], cwd)
-  const expectedBranch = status.branch === "(detached)" ? "HEAD" : `refs/heads/${status.branch}`
+  const { checkout } = status
+  const expectedBranch = checkout.kind === "detached" ? "HEAD" : `refs/heads/${checkout.name}`
   const [oid, branch] = revision.stdout.trimEnd().split(/\r?\n/)
   return succeeded(revision) && oid === status.oid && branch === expectedBranch
 }
 
-export async function readGitSummary(run: RunGit, cwd: string): Promise<GitSummary> {
+export async function readWorktree(run: RunGit, cwd: string): Promise<WorktreeSummary> {
   try {
     const rootResult = await run(["rev-parse", "--show-toplevel"], cwd)
     if (rootResult.exitCode !== 0 && /not a git repository|must be run in a work tree/.test(rootResult.stderr)) {
@@ -180,7 +172,7 @@ export async function readGitSummary(run: RunGit, cwd: string): Promise<GitSumma
     return {
       kind: "ready",
       root,
-      branch: status.branch === "(detached)" ? `detached HEAD ${status.oid?.slice(0, 7) ?? ""}` : status.branch,
+      checkout: status.checkout,
       tracked: status.tracked,
       untracked: status.untracked,
       lines,

@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test, { type TestContext } from "node:test"
-import { readGitSummary, type RunGit } from "../plugins/session-rail/src/git.ts"
+import { readWorktree, type RunGit } from "../../plugins/session-rail/src/infrastructure/git/read-worktree.ts"
 
 function temporaryDirectory(t: TestContext): string {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "session-rail-")))
@@ -50,8 +50,9 @@ function initialize(t: TestContext, commit = true): string {
 
 test("変更がない Git リポジトリのブランチとルートを読む", async (t) => {
   const root = initialize(t)
-  assert.deepEqual(await readGitSummary(runGit, root), {
-    kind: "ready", root, branch: "main", tracked: 0, untracked: 0, lines: { added: 0, deleted: 0, binary: 0 },
+  assert.deepEqual(await readWorktree(runGit, root), {
+    kind: "ready", root, checkout: { kind: "branch", name: "main" },
+    tracked: 0, untracked: 0, lines: { added: 0, deleted: 0, binary: 0 },
   })
 })
 
@@ -67,8 +68,9 @@ test("ステージ済み・未ステージ・名前変更・バイナリ・未�
   writeFileSync(join(subdir, "one.txt"), "not in the line count\n")
   writeFileSync(join(subdir, "two.txt"), "not in the line count\n")
 
-  assert.deepEqual(await readGitSummary(runGit, subdir), {
-    kind: "ready", root, branch: "main", tracked: 3, untracked: 2, lines: { added: 2, deleted: 1, binary: 1 },
+  assert.deepEqual(await readWorktree(runGit, subdir), {
+    kind: "ready", root, checkout: { kind: "branch", name: "main" },
+    tracked: 3, untracked: 2, lines: { added: 2, deleted: 1, binary: 1 },
   })
 })
 
@@ -78,18 +80,20 @@ test("メインの作業ツリーではなく、開いている worktree のブ�
   const worktree = join(container, "linked")
   git(main, "worktree", "add", "-qb", "feature/rail", worktree)
   writeFileSync(join(worktree, "note.txt"), "changed\n")
-  assert.deepEqual(await readGitSummary(runGit, worktree), {
-    kind: "ready", root: worktree, branch: "feature/rail", tracked: 1, untracked: 0, lines: { added: 1, deleted: 2, binary: 0 },
+  assert.deepEqual(await readWorktree(runGit, worktree), {
+    kind: "ready", root: worktree, checkout: { kind: "branch", name: "feature/rail" },
+    tracked: 1, untracked: 0, lines: { added: 1, deleted: 2, binary: 0 },
   })
 })
 
 test("detached HEAD でもコミットと行差分を表示する", async (t) => {
   const root = initialize(t)
-  const head = git(root, "rev-parse", "HEAD").trim().slice(0, 7)
+  const oid = git(root, "rev-parse", "HEAD").trim()
   git(root, "switch", "--quiet", "--detach", "HEAD")
   writeFileSync(join(root, "note.txt"), "changed\n")
-  assert.deepEqual(await readGitSummary(runGit, root), {
-    kind: "ready", root, branch: `detached HEAD ${head}`, tracked: 1, untracked: 0, lines: { added: 1, deleted: 2, binary: 0 },
+  assert.deepEqual(await readWorktree(runGit, root), {
+    kind: "ready", root, checkout: { kind: "detached", oid },
+    tracked: 1, untracked: 0, lines: { added: 1, deleted: 2, binary: 0 },
   })
 })
 
@@ -97,16 +101,17 @@ test("初回コミット前はファイル件数を出すが、HEAD との差分
   const root = initialize(t, false)
   writeFileSync(join(root, "first.txt"), "first\n")
   git(root, "add", "first.txt")
-  assert.deepEqual(await readGitSummary(runGit, root), {
-    kind: "ready", root, branch: "main", tracked: 1, untracked: 0, lines: null,
+  assert.deepEqual(await readWorktree(runGit, root), {
+    kind: "ready", root, checkout: { kind: "branch", name: "main" },
+    tracked: 1, untracked: 0, lines: null,
   })
 })
 
 test("Git 管理外と Git の起動失敗を区別する", async (t) => {
   const dir = temporaryDirectory(t)
-  assert.deepEqual(await readGitSummary(runGit, dir), { kind: "outside" })
+  assert.deepEqual(await readWorktree(runGit, dir), { kind: "outside" })
   const missing: RunGit = async () => { throw new Error("git was not found") }
-  assert.deepEqual(await readGitSummary(missing, dir), { kind: "unavailable" })
+  assert.deepEqual(await readWorktree(missing, dir), { kind: "unavailable" })
 })
 
 test("途中で同じ HEAD の別ブランチへ切り替わった場合は、古い値を出さない", async (t) => {
@@ -119,7 +124,7 @@ test("途中で同じ HEAD の別ブランチへ切り替わった場合は、�
     }
     return out
   }
-  assert.deepEqual(await readGitSummary(movingCheckout, root), { kind: "unavailable" })
+  assert.deepEqual(await readWorktree(movingCheckout, root), { kind: "unavailable" })
 })
 
 test("行差分の出力が途中で切れても、途中までの行数を表示しない", async (t) => {
@@ -132,7 +137,8 @@ test("行差分の出力が途中で切れても、途中までの行数を表�
     }
     return out
   }
-  assert.deepEqual(await readGitSummary(limited, root), {
-    kind: "ready", root, branch: "main", tracked: 1, untracked: 0, lines: null,
+  assert.deepEqual(await readWorktree(limited, root), {
+    kind: "ready", root, checkout: { kind: "branch", name: "main" },
+    tracked: 1, untracked: 0, lines: null,
   })
 })

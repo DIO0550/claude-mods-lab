@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { setImmediate } from "node:timers/promises"
 import type { CommandSpec, On, PaneOpenArgs, SessionUsage, UiOpenResult } from "claude-code"
-import { register } from "../plugins/session-rail/hooks/register.ts"
+import { register } from "../../plugins/session-rail/hooks/register.ts"
 
 const PANE_ID = "claude-mods-lab-session-rail"
 const OID = "a".repeat(40)

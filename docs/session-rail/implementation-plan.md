@@ -20,7 +20,7 @@ Desktop 本体の変更、別セッションへの切り替え、埋め込みブ
 
 ## 2. 最初に実機で確かめる
 
-実装は `plugins/session-rail/` に置く。`node --test tests/*.test.ts` で開閉、実データの表示、Git の集計を確認できる。以下は Claude Code 実機での確認手順。
+実装は `plugins/session-rail/` に置く。`node --test "tests/**/*.test.ts"` で開閉、実データの表示、Git の集計を確認できる。以下は Claude Code 実機での確認手順。
 
 型定義やモックだけでは、ペインの位置、フォーカス、組み込みコマンドの起動までは確定できない。まず、Mod をローカルで読み込み、開閉と配置から確かめる。
 
@@ -39,7 +39,7 @@ claude --plugin-dir ./plugins/session-rail
 
 ## 3. 設計とリポジトリ構成
 
-**起動と描画、データの取得、表示用データの組み立てを分ける。** `ui.render` は現在のスナップショットを描くだけにして、Git や `gh` を毎回起動しない。レイアウトを入れ替えても同じデータを使えるようにする。
+**セッションの状態と判断、取得の手順、外部 API との接続、表示を分ける。** `ui.render` は現在のスナップショットを描くだけにして、Git や `gh` を毎回起動しない。レイアウトを入れ替えても同じデータを使えるようにする。
 
 ```mermaid
 flowchart TD
@@ -71,18 +71,20 @@ stateDiagram-v2
 
 コンテキストの展開やタブの選択は、ペインの開閉とは別の表示状態。環境、コンテキスト、ローカル差分、PR は個別に準備中・取得済み・対象なし・取得不可を持つ。一つの取得に失敗しても、他のセクションは表示する。
 
-| 置き場所の案 | 役割 |
+| 置き場所 | 役割 |
 | --- | --- |
 | `plugins/session-rail/.claude-plugin/plugin.json` | Mod の名前と説明 |
 | `plugins/session-rail/hooks/hooks.json` | hooks module の入口を指定 |
-| `plugins/session-rail/hooks/register.ts` | コマンド登録、開閉、更新イベントの接続 |
-| `plugins/session-rail/src/summary.ts` | セッション情報の取得と、表示用サマリーの組み立て |
-| `plugins/session-rail/src/git.ts` | 現在の worktree の検出、ブランチ、差分の集計 |
-| `plugins/session-rail/src/ui/` | コンテキスト内訳など、表示を分割する場合の候補 |
-| `tests/` | 実 Git と、スタブを使う Mod のイベント／描画テスト |
-| `docs/session-rail/` | リポジトリに計画やモックを置く場合の候補 |
+| `plugins/session-rail/hooks/register.ts` | コマンドとイベントを登録し、各層をつなぐ入口 |
+| `plugins/session-rail/src/domain/` | セッション、コンテキスト使用量、worktree の型と判断。未計測と 0% の区別もここで扱う |
+| `plugins/session-rail/src/application/` | セッションと worktree の取得を取りまとめ、スナップショットを更新する。取得元は `SummarySources` で受け取る |
+| `plugins/session-rail/src/infrastructure/claude-code/` | Claude Code のセッション API とコマンド実行を取得元につなぐ |
+| `plugins/session-rail/src/infrastructure/git/` | worktree を検出し、Git のコマンド出力をドメインの値に変換する |
+| `plugins/session-rail/src/presentation/` | 表示文言、行数、コンパクト表示と詳細表示の組み立て |
+| `tests/` | 各層の単体テスト、実 Git を使うテスト、Mod の開閉・描画の結合テスト |
+| `docs/session-rail/` | 実装計画と HTML の画面案 |
 
-空のフォルダや大きな土台は先に作らない。最小検証ではマニフェスト・フック登録・描画だけ置き、項目を追加するときに分割する。ローカルの検証は公式の `--plugin-dir` を使う。
+`domain` は外部 API と描画に依存しない。`application` は `domain` と自分が定義した取得口だけに依存し、Claude Code や Git を直接呼ばない。たとえば Git が返す detached HEAD はドメインではコミット ID として保持し、7 桁に短くするのは表示側だけで行う。
 
 ## 4. データと操作の契約
 

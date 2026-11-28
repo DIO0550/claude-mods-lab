@@ -17,10 +17,12 @@ claude --plugin-dir ./plugins/session-rail
 
 起動後に `/rail` を入力します。広い fullscreen 表示では会話の右、狭い場合や classic 表示では入力欄の上を確認します。もう一度 `/rail` を入力すると閉じます。
 
-ホスト API をスタブにした開閉・描画テストと、一時リポジトリを使った Git テストは Node.js 24 と Git で実行できます。
+`plugins/session-rail/src/` はドメイン、取得と更新の流れ、外部 API との接続、表示に分かれています。`hooks/register.ts` が各層をつなぎます。各フォルダの役割は実装計画を参照してください。
+
+各層の単体テスト、ホスト API をスタブにした開閉・描画テスト、一時リポジトリを使った Git テストは Node.js 24 と Git で実行できます。
 
 ```sh
-node --test tests/*.test.ts
+node --test "tests/**/*.test.ts"
 ```
 
 - [実装計画](docs/session-rail/implementation-plan.md)
